@@ -3,6 +3,7 @@ package ssdp
 import (
 	"fmt"
 	"golang.org/x/net/ipv4"
+	"math/rand"
 	"net"
 	"runtime"
 	"strconv"
@@ -89,10 +90,12 @@ type Server struct {
 	// all handled notification type(nt) / search target(st)
 	// len = 3 of device + len(ServiceList)
 	targets []string
+	uuid    string
 
-	quit    chan struct{}
-	udpAddr *net.UDPAddr
-	udpConn *net.UDPConn
+	quit         chan struct{}
+	udpAddr      *net.UDPAddr
+	udpConn      *net.UDPConn
+	cacheControl string
 }
 
 func (s *Server) Start() *Server {
@@ -127,13 +130,16 @@ func (s *Server) ListenAndServe() error {
 	}
 
 	s.quit = make(chan struct{})
-	s.listen()
+	go s.listen()
+	s.sendAlive()
+	s.multicast()
 
 	return nil
 }
 
 func (s *Server) Shutdown() {
 	close(s.quit)
+	s.sendByeBye()
 	if err := s.udpConn.Close(); err != nil {
 		_ = s.notifyError(err)
 	}
@@ -160,6 +166,22 @@ func (s *Server) listen() {
 	}
 }
 
+// multicast start notification daemon.
+// Sends every Server.NotifyInterval new notifications about every targets
+func (s *Server) multicast() {
+
+	tick := time.NewTicker(s.NotifyInterval)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-s.quit:
+			return
+		case <-tick.C:
+		}
+		s.sendAlive()
+	}
+}
 func (s *Server) parseUdpMessage(buf []byte, sender *net.UDPAddr) {
 
 	lines := strings.Split(string(buf), "\r\n")
@@ -247,6 +269,89 @@ func (s *Server) parseUdpMessage(buf []byte, sender *net.UDPAddr) {
 	}
 
 	s.notifyInfo(fmt.Sprintf("ssdp:discover [%s] from %s", st, sender.String()))
+
+	for _, target := range targets {
+		msg := s.makeMSearchResponse(target)
+		delay := time.Duration(rand.Int63n(int64(time.Second) * mx))
+		s.send(msg, sender, delay)
+	}
+}
+
+func (s *Server) send(msg string, to *net.UDPAddr, delay ...time.Duration) {
+	if len(delay) > 0 {
+		go func() {
+			select {
+			case <-time.After(delay[0]):
+				s.send(msg, to)
+			case <-s.quit:
+			}
+		}()
+		return
+	}
+	buf := []byte(msg)
+	if n, err := s.udpConn.WriteToUDP(buf, to); err != nil {
+		s.notifyInfo(fmt.Sprintf("error writing to udp : %s", err.Error()))
+	} else if n != len(buf) {
+		s.notifyInfo(fmt.Sprintf("short write to udp : %d/%d", n, len(buf)))
+	}
+}
+
+func (s *Server) sendAlive() {
+	for _, target := range s.targets {
+		msg := s.makeAliveMessage(target)
+		// [page 15] Devices should wait a random interval less than 100 milliseconds before sending
+		// an initial set of advertisements in order to reduce the likelihood of network storms;
+		// this random interval should also be applied on occasions where the device obtains a
+		// new IP address or a new network interface is installed.
+		delay := time.Duration(rand.Int63n(int64(100 * time.Millisecond)))
+		s.send(msg, s.udpAddr, delay)
+	}
+}
+
+func (s *Server) sendByeBye() {
+	for _, target := range s.targets {
+		msg := s.makeByeByeMessage(target)
+		s.send(msg, s.udpAddr)
+	}
+}
+
+func (s *Server) usnFromTarget(target string) string {
+	if s.uuid == target {
+		return s.uuid
+	}
+	return s.uuid + "::" + target
+}
+
+func (s *Server) makeAliveMessage(target string) string {
+	return "NOTIFY * HTTP/1.1\r\n" +
+		"HOST: " + MulticastAddrPort + "\r\n" +
+		"CACHE-CONTROL: " + s.cacheControl + "\r\n" +
+		"LOCATION: " + s.Location + "\r\n" +
+		"SERVER: " + s.ServerHeader + "\r\n" +
+		"NT: " + target + "\r\n" +
+		"USN: " + s.usnFromTarget(target) + "\r\n" +
+		"NTS: ssdp:alive\r\n"
+}
+
+func (s *Server) makeByeByeMessage(target string) string {
+	return "NOTIFY * HTTP/1.1\r\n" +
+		"HOST: " + MulticastAddrPort + "\r\n" +
+		"NT: " + target + "\r\n" +
+		"USN: " + s.usnFromTarget(target) + "\r\n" +
+		"NTS: ssdp:byebye\r\n"
+}
+
+func (s *Server) makeMSearchResponse(target string) string {
+	return "HTTP/1.1 200 OK\r\n" +
+		"CACHE-CONTROL: " + s.cacheControl + "\r\n" +
+		"DATE: " + time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT") + "\r\n" +
+		"ST: " + target + "\r\n" +
+		"USN: " + s.usnFromTarget(target) + "\r\n" +
+		"EXT:\r\n" +
+		"SERVER: " + s.ServerHeader + "\r\n" +
+		"LOCATION: " + s.Location + "\r\n" +
+		"Content-Length: 0\r\n" +
+		"\r\n"
 }
 
 func (s *Server) validateAndSetDefaults() error {
@@ -278,6 +383,8 @@ func (s *Server) validateAndSetDefaults() error {
 		s.MaxAge = 30 * time.Minute
 	}
 
+	s.cacheControl = "max-age=" + strconv.Itoa(int(s.MaxAge.Seconds()))
+
 	if s.NotifyInterval == 0 {
 		s.NotifyInterval = 2 * s.MaxAge / 5
 	}
@@ -286,11 +393,12 @@ func (s *Server) validateAndSetDefaults() error {
 		s.MulticastTTL = 4
 	}
 
-	uuid := s.DeviceUUID
-	if !strings.HasPrefix(uuid, "uuid:") {
-		uuid = "uuid:" + uuid
+	if strings.HasPrefix(s.DeviceUUID, "uuid:") {
+		s.uuid = s.DeviceUUID
+	} else {
+		s.uuid = "uuid:" + s.DeviceUUID
 	}
-	s.targets = append([]string{uuid, "upnp:rootdevice", s.DeviceType}, s.ServiceList...)
+	s.targets = append([]string{s.uuid, "upnp:rootdevice", s.DeviceType}, s.ServiceList...)
 
 	return nil
 }

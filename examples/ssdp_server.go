@@ -3,11 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/szonov/go-upnp-lib/network"
+	"github.com/szonov/go-upnp-lib/ssdp"
 	"os"
 	"os/signal"
-	"time"
-
-	"github.com/szonov/go-upnp-lib/ssdp"
 )
 
 func main() {
@@ -20,15 +18,16 @@ func main() {
 		fmt.Printf("[INFO] %s: %s\n", caller, msg)
 	}
 
+	v4face := network.DefaultV4Interface()
+
 	ssdpServer := &ssdp.Server{
-		Location:       "http://192.168.0.100",
-		DeviceType:     "urn:schemas-upnp-org:device:MediaServer:1",
-		DeviceUUID:     "da2cc462-0000-0000-0000-44fd2452e03f",
-		ServiceList:    []string{"urn:schemas-upnp-org:service:ConnectionManager:1"},
-		Interface:      network.DefaultV4Interface().Interface,
-		ErrorHandler:   errorHandler,
-		InfoHandler:    infoHandler,
-		NotifyInterval: 10 * time.Second,
+		Location:     "http://" + v4face.IP + "/device.xml",
+		DeviceType:   "urn:schemas-upnp-org:device:MediaServer:1",
+		DeviceUUID:   "uuid:da2cc462-0000-0000-0000-44fd2452e03f",
+		ServiceList:  []string{"urn:schemas-upnp-org:service:ConnectionManager:1"},
+		Interface:    v4face.Interface,
+		ErrorHandler: errorHandler,
+		InfoHandler:  infoHandler,
 	}
 
 	c := make(chan os.Signal, 1)

@@ -2,6 +2,7 @@ package ssdp
 
 import (
 	"fmt"
+	"golang.org/x/net/ipv4"
 	"net"
 	"runtime"
 	"strings"
@@ -46,6 +47,11 @@ type Server struct {
 	// Optional: Default is "2/5 * MaxAge"
 	NotifyInterval time.Duration
 
+	// [page 12] To limit network congestion, the time-to-live (TTL) of each
+	// IP packet for each multicast message should default to 4 and should be configurable.
+	// Optional: Default is 4
+	MulticastTTL int
+
 	// Full device type. Should contain exact value, added to xml in <deviceType>.*</deviceType>
 	// Example: "urn:schemas-upnp-org:device:MediaServer:1"
 	// Required: No defaults
@@ -82,6 +88,10 @@ type Server struct {
 	// all handled notification type(nt) / search target(st)
 	// len = 3 of device + len(ServiceList)
 	targets []string
+
+	quit    chan struct{}
+	udpAddr *net.UDPAddr
+	udpConn *net.UDPConn
 }
 
 func (s *Server) Start() *Server {
@@ -94,17 +104,59 @@ func (s *Server) Start() *Server {
 }
 
 func (s *Server) ListenAndServe() error {
-	if err := s.validateAndSetDefaults(); err != nil {
+	var err error
+	if err = s.validateAndSetDefaults(); err != nil {
 		return s.notifyError(err)
 	}
 
 	msg := fmt.Sprintf("starting ssdp server on address %s (%s)", MulticastAddrPort, s.Interface.Name)
 	s.notifyInfo(msg)
 
+	if s.udpAddr, err = net.ResolveUDPAddr("udp4", MulticastAddrPort); err != nil {
+		return s.notifyError(err)
+	}
+
+	s.udpConn, err = net.ListenMulticastUDP("udp", s.Interface, s.udpAddr)
+	if err != nil {
+		return s.notifyError(err)
+	}
+
+	if err = ipv4.NewPacketConn(s.udpConn).SetMulticastTTL(s.MulticastTTL); err != nil {
+		return s.notifyError(err)
+	}
+
+	s.quit = make(chan struct{})
+	s.listen()
+
 	return nil
 }
 
 func (s *Server) Shutdown() {
+	close(s.quit)
+	if err := s.udpConn.Close(); err != nil {
+		_ = s.notifyError(err)
+	}
+}
+
+// listen Listen for incoming UDP messages
+func (s *Server) listen() {
+	for {
+		size := s.Interface.MTU
+		if size <= 0 || size > 65536 {
+			size = 65536
+		}
+		b := make([]byte, size)
+		n, addr, err := s.udpConn.ReadFromUDP(b)
+		select {
+		case <-s.quit:
+			return
+		default:
+		}
+		if s.notifyError(err) != nil {
+			break
+		}
+		s.notifyInfo(fmt.Sprintf("received %d bytes from %s\n%s", n, addr.String(), b[:n]))
+	}
 }
 
 func (s *Server) validateAndSetDefaults() error {
@@ -140,6 +192,10 @@ func (s *Server) validateAndSetDefaults() error {
 		s.NotifyInterval = 2 * s.MaxAge / 5
 	}
 
+	if s.MulticastTTL == 0 {
+		s.MulticastTTL = 4
+	}
+
 	uuid := s.DeviceUUID
 	if !strings.HasPrefix(uuid, "uuid:") {
 		uuid = "uuid:" + uuid
@@ -150,7 +206,7 @@ func (s *Server) validateAndSetDefaults() error {
 }
 
 func (s *Server) notifyError(err error) error {
-	if s.ErrorHandler != nil {
+	if err != nil && s.ErrorHandler != nil {
 		s.ErrorHandler(err, CallerName)
 	}
 	return err

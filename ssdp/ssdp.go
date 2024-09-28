@@ -13,7 +13,7 @@ import (
 
 const (
 	MulticastAddrPort string = "239.255.255.250:1900"
-	CallerName        string = "ssdp"
+	Identifier        string = "SSDP"
 )
 
 // Server Describes structure of SSDP Server
@@ -81,11 +81,11 @@ type Server struct {
 
 	// How to handle errors, useful for logs or something else.
 	// Optional: No defaults
-	ErrorHandler func(err error, caller string)
+	ErrorHandler func(err error, identity string)
 
-	// How to handle ssdp server notifications, useful for debug.
+	// How to handle server notifications, useful for debug.
 	// Optional: No defaults
-	InfoHandler func(msg string, caller string)
+	InfoHandler func(msg string, identity string)
 
 	// all handled notification type(nt) / search target(st)
 	// len = 3 of device + len(ServiceList)
@@ -405,13 +405,13 @@ func (s *Server) validateAndSetDefaults() error {
 
 func (s *Server) notifyError(err error) error {
 	if err != nil && s.ErrorHandler != nil {
-		s.ErrorHandler(err, CallerName)
+		s.ErrorHandler(err, Identifier)
 	}
 	return err
 }
 
 func (s *Server) notifyInfo(msg string) {
 	if s.InfoHandler != nil {
-		s.InfoHandler(msg, CallerName)
+		s.InfoHandler(msg, Identifier)
 	}
 }

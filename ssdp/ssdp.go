@@ -5,6 +5,7 @@ import (
 	"golang.org/x/net/ipv4"
 	"net"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -155,8 +156,97 @@ func (s *Server) listen() {
 		if s.notifyError(err) != nil {
 			break
 		}
-		s.notifyInfo(fmt.Sprintf("received %d bytes from %s\n%s", n, addr.String(), b[:n]))
+		go s.parseUdpMessage(b[:n], addr)
 	}
+}
+
+func (s *Server) parseUdpMessage(buf []byte, sender *net.UDPAddr) {
+
+	lines := strings.Split(string(buf), "\r\n")
+
+	if len(lines) < 5 {
+		return
+	}
+
+	var hostOK, manOK bool
+	mx := int64(1)
+	st := ""
+
+	// If value not in our POI (point of interests), we just stop processing and return
+	for i, line := range lines {
+		if i == 0 {
+			// [page 18] request should be started exact by this line
+			if line != "M-SEARCH * HTTP/1.1" {
+				return
+			}
+			continue
+		}
+
+		if parts := strings.SplitN(line, ":", 2); len(parts) == 2 {
+
+			name := strings.ToUpper(strings.Trim(parts[0], " \t"))
+			value := strings.Trim(parts[1], " \t\"")
+
+			switch name {
+			case "HOST":
+				// [page 19] Multicast channel and port reserved for SSDP by
+				// Internet Assigned Numbers Authority (IANA). Must be
+				// 239.255.255.250:1900. If the port number (“:1900”) is omitted,
+				// the receiver should assume the default SSDP port number of 1900.
+				if value != MulticastAddrPort && value+":1900" != MulticastAddrPort {
+					return
+				}
+				hostOK = true
+			case "MAN":
+				// [page 19] Required by HTTP Extension Framework. Unlike the NTS and ST headers,
+				// the value of the MAN header is enclosed in double quotes;
+				// it defines the scope (namespace) of the extension. Must be "ssdp:discover".
+				if value != "ssdp:discover" {
+					return
+				}
+				manOK = true
+			case "MX":
+				// [page 19] Required. Maximum wait time in seconds.
+				// Should be between 1 and 120 inclusive. Device responses should be delayed a
+				// random duration between 0 and this many seconds to balance load
+				// for the control point when it processes responses.
+				mxUint, err := strconv.ParseUint(value, 0, 0)
+				if s.notifyError(err) != nil {
+					return
+				}
+				mx = int64(mxUint)
+				if mx <= 0 {
+					mx = 1
+				} else if mx > 120 {
+					mx = 120
+				}
+			case "ST":
+				st = value
+			}
+		}
+	}
+
+	if !hostOK || !manOK || st == "" {
+		return
+	}
+
+	targets := func(st string) []string {
+		if st == "ssdp:all" {
+			return s.targets
+		}
+		for _, t := range s.targets {
+			if t == st {
+				return []string{t}
+			}
+		}
+		return nil
+	}(st)
+
+	if len(targets) == 0 {
+		return
+	}
+
+	s.notifyInfo(fmt.Sprintf("ssdp:discover [%s] from %s", st, sender.String()))
 }
 
 func (s *Server) validateAndSetDefaults() error {
@@ -200,7 +290,7 @@ func (s *Server) validateAndSetDefaults() error {
 	if !strings.HasPrefix(uuid, "uuid:") {
 		uuid = "uuid:" + uuid
 	}
-	s.targets = append([]string{uuid, "upnp:rootdevice", s.DeviceUUID}, s.ServiceList...)
+	s.targets = append([]string{uuid, "upnp:rootdevice", s.DeviceType}, s.ServiceList...)
 
 	return nil
 }

@@ -1,10 +1,11 @@
 package ssdp
 
 import (
+	"fmt"
 	"net"
+	"runtime"
+	"strings"
 	"time"
-
-	"github.com/szonov/go-upnp-lib"
 )
 
 const (
@@ -26,10 +27,10 @@ type Server struct {
 	// Specified by UPnP vendor. String.
 	// Must accurately reflect the version number of the UPnP Device Architecture supported by the device.
 	// Control points must be prepared to accept a higher minor version number than the control point itself implements.
-	// Forexample, control points implementing UDA version 1.0 will be able to interoperate with devices
+	// For example, control points implementing UDA version 1.0 will be able to interoperate with devices
 	// implementing UDA version 1.1.
 	// Example: "Linux/6.0 UPnP/1.0 App/1.0"
-	// Optional: Default is "TODO..."
+	// Optional: Default is "[runtime.GOOS]/[runtime.Version()] UPnP/1.0 GoUPnP/1.0"
 	ServerHeader string
 
 	// [page 16] CACHE-CONTROL Required. Must have max-age directive that specifies number of seconds the advertisement is valid.
@@ -42,8 +43,13 @@ type Server struct {
 	// of the duration specified in the CACHE-CONTROL header;
 	// it is recommended that such refreshing of advertisements be done at a randomly-distributed interval
 	// of less than one-half of the advertisement expiration time
-	// Optional: Default is "TODO..."
+	// Optional: Default is "2/5 * MaxAge"
 	NotifyInterval time.Duration
+
+	// Full device type. Should contain exact value, added to xml in <deviceType>.*</deviceType>
+	// Example: "urn:schemas-upnp-org:device:MediaServer:1"
+	// Required: No defaults
+	DeviceType string
 
 	// Device UUID specified by UPnP vendor. (with or without "uuid:" prefix)
 	// Valid examples:
@@ -51,11 +57,6 @@ type Server struct {
 	// - "da2cc462-0000-0000-0000-44fd2452e03f"
 	// Required: No defaults
 	DeviceUUID string
-
-	// Full device type. Should contain exact value, added to xml in <deviceType>.*</deviceType>
-	// Example: "urn:schemas-upnp-org:device:MediaServer:1"
-	// Required: No defaults
-	DeviceType string
 
 	// List of full service types as it appears in xml in <serviceType>.*</serviceType>
 	// Example: []string{
@@ -68,21 +69,24 @@ type Server struct {
 	// Used network interface for ssdp server
 	// I don't need multi-interface support for my purposes
 	// Required: No defaults
-	Interface net.Interface
+	Interface *net.Interface
 
 	// How to handle errors, useful for logs or something else.
 	// Optional: No defaults
-	ErrorHandler upnp.ErrorHandlerFunc
+	ErrorHandler func(err error, caller string)
 
 	// How to handle ssdp server notifications, useful for debug.
 	// Optional: No defaults
-	InfoHandler upnp.InfoHandlerFunc
+	InfoHandler func(msg string, caller string)
+
+	// all handled notification type(nt) / search target(st)
+	// len = 3 of device + len(ServiceList)
+	targets []string
 }
 
 func (s *Server) Start() *Server {
 	go func() {
 		if err := s.ListenAndServe(); err != nil {
-			s.notifyError(err)
 			panic(err)
 		}
 	}()
@@ -90,10 +94,56 @@ func (s *Server) Start() *Server {
 }
 
 func (s *Server) ListenAndServe() error {
+	if err := s.validateAndSetDefaults(); err != nil {
+		return s.notifyError(err)
+	}
+
 	return nil
 }
 
 func (s *Server) Shutdown() {
+}
+
+func (s *Server) validateAndSetDefaults() error {
+	if s.Location == "" {
+		return fmt.Errorf("no Location specified")
+	}
+
+	if s.DeviceType == "" {
+		return fmt.Errorf("no DeviceType specified")
+	}
+
+	if s.DeviceUUID == "" {
+		return fmt.Errorf("no DeviceUUID specified")
+	}
+
+	if len(s.ServiceList) == 0 {
+		return fmt.Errorf("no ServiceList specified")
+	}
+
+	if s.Interface == nil {
+		return fmt.Errorf("no interface specified")
+	}
+
+	if s.ServerHeader == "" {
+		s.ServerHeader = fmt.Sprintf("%s/%s %s %s", runtime.GOOS, runtime.Version(), "UPnP/1.0", "GoUPnP/1.0")
+	}
+
+	if s.MaxAge == 0 {
+		s.MaxAge = 30 * time.Minute
+	}
+
+	if s.NotifyInterval == 0 {
+		s.NotifyInterval = 2 * s.MaxAge / 5
+	}
+
+	uuid := s.DeviceUUID
+	if !strings.HasPrefix(uuid, "uuid:") {
+		uuid = "uuid:" + uuid
+	}
+	s.targets = append([]string{uuid, "upnp:rootdevice", s.DeviceUUID}, s.ServiceList...)
+
+	return nil
 }
 
 func (s *Server) notifyError(err error) error {

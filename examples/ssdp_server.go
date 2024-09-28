@@ -12,14 +12,18 @@ import (
 func main() {
 
 	errorHandler := func(err error, caller string) {
-		fmt.Printf("[%s] ERROR %s\n", caller, err)
+		fmt.Printf("[ERROR] %s: %s\n", caller, err)
 	}
 
 	infoHandler := func(msg string, caller string) {
-		fmt.Printf("[%s] INFO %s\n", caller, msg)
+		fmt.Printf("[INFO] %s: %s\n", caller, msg)
 	}
 
 	ssdpServer := &ssdp.Server{
+		Location:       "http://192.168.0.100",
+		DeviceType:     "urn:schemas-upnp-org:device:MediaServer:1",
+		DeviceUUID:     "da2cc462-0000-0000-0000-44fd2452e03f",
+		ServiceList:    []string{"urn:schemas-upnp-org:service:ConnectionManager:1"},
 		ErrorHandler:   errorHandler,
 		InfoHandler:    infoHandler,
 		NotifyInterval: 10 * time.Second,
@@ -36,9 +40,7 @@ func main() {
 
 	infoHandler("server starting", "app")
 
-	if err := ssdpServer.ListenAndServe(); err != nil {
-		errorHandler(err, "app")
-	}
+	_ = ssdpServer.ListenAndServe()
 
 	infoHandler("server stopped", "app")
 }

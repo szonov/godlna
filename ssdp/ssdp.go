@@ -71,7 +71,7 @@ type Server struct {
 	//   "urn:schemas-upnp-org:service:ContentDirectory:1",
 	//   "urn:schemas-upnp-org:service:ConnectionManager:1",
 	// }
-	// Required: Not empty. No defaults
+	// Optional: No defaults
 	ServiceList []string
 
 	// Used network interface for ssdp server
@@ -365,10 +365,6 @@ func (s *Server) validateAndSetDefaults() error {
 
 	if s.DeviceUUID == "" {
 		return fmt.Errorf("no DeviceUUID specified")
-	}
-
-	if len(s.ServiceList) == 0 {
-		return fmt.Errorf("no ServiceList specified")
 	}
 
 	if s.Interface == nil {

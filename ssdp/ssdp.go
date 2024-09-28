@@ -98,6 +98,9 @@ func (s *Server) ListenAndServe() error {
 		return s.notifyError(err)
 	}
 
+	msg := fmt.Sprintf("starting ssdp server on address %s (%s)", MulticastAddrPort, s.Interface.Name)
+	s.notifyInfo(msg)
+
 	return nil
 }
 

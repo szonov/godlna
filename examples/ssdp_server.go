@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/szonov/go-upnp-lib/network"
 	"os"
 	"os/signal"
 	"time"
@@ -24,6 +25,7 @@ func main() {
 		DeviceType:     "urn:schemas-upnp-org:device:MediaServer:1",
 		DeviceUUID:     "da2cc462-0000-0000-0000-44fd2452e03f",
 		ServiceList:    []string{"urn:schemas-upnp-org:service:ConnectionManager:1"},
+		Interface:      network.DefaultV4Interface().Interface,
 		ErrorHandler:   errorHandler,
 		InfoHandler:    infoHandler,
 		NotifyInterval: 10 * time.Second,

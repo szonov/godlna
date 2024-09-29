@@ -112,8 +112,7 @@ func (s *Server) ListenAndServe() error {
 		return s.notifyError(err)
 	}
 
-	msg := fmt.Sprintf("starting ssdp server on address %s (%s)", MulticastAddrPort, s.Interface.Name)
-	s.notifyInfo(msg)
+	s.notifyInfo(fmt.Sprintf("starting ssdp server on address %s (%s)", MulticastAddrPort, s.Interface.Name))
 
 	if s.udpAddr, err = net.ResolveUDPAddr("udp4", MulticastAddrPort); err != nil {
 		return s.notifyError(err)
@@ -137,6 +136,7 @@ func (s *Server) ListenAndServe() error {
 }
 
 func (s *Server) Shutdown() {
+	s.notifyInfo(fmt.Sprintf("stopping ssdp server on address %s (%s)", MulticastAddrPort, s.Interface.Name))
 	close(s.quit)
 	s.sendByeBye()
 	if err := s.udpConn.Close(); err != nil {

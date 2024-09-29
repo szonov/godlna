@@ -5,6 +5,8 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/szonov/go-upnp-lib/ssdp"
+	"net"
 	"net/http"
 	"runtime"
 	"time"
@@ -47,6 +49,20 @@ type Server struct {
 	// Optional: Default is "[runtime.GOOS]/[runtime.Version()] UPnP/1.0 GoUPnP/1.0"
 	ServerHeader string
 
+	// SsdpInterface Interface, on which start SSDP server
+	// If not provided, build-in SSDP server will be disabled, and you can start another ssdp server
+	// Optional: No defaults
+	SsdpInterface *net.Interface
+
+	// SsdpMaxAge MaxAge parameter for build-in ssdp server, without SsdpInterface it is useful
+	SsdpMaxAge time.Duration
+
+	// SsdpNotifyInterval NotifyInterval parameter for build-in ssdp server, without SsdpInterface it is useful
+	SsdpNotifyInterval time.Duration
+
+	// SsdpMulticastTTL MulticastTTL parameter for build-in ssdp server, without SsdpInterface it is useful
+	SsdpMulticastTTL int
+
 	// How to handle errors, useful for logs or something else.
 	// Optional: No defaults
 	ErrorHandler ErrorHandlerFunc
@@ -57,6 +73,7 @@ type Server struct {
 
 	srv           *http.Server
 	deviceDescXML []byte
+	ssdpServer    *ssdp.Server
 }
 
 func (s *Server) Start() *Server {
@@ -93,6 +110,8 @@ func (s *Server) ListenAndServe() error {
 		return err
 	}
 
+	s.startSsdpServer()
+
 	s.notifyInfo(fmt.Sprintf("starting UPnP server on address %s", s.ListenAddress))
 
 	s.srv = &http.Server{
@@ -108,6 +127,10 @@ func (s *Server) ListenAndServe() error {
 }
 
 func (s *Server) Shutdown() {
+	if s.ssdpServer != nil {
+		s.ssdpServer.Shutdown()
+	}
+	s.notifyInfo(fmt.Sprintf("stopping UPnP server on address %s", s.ListenAddress))
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = s.notifyError(s.srv.Shutdown(ctx))
@@ -170,6 +193,33 @@ func (s *Server) makeDevice() error {
 		}
 	}
 	return nil
+}
+
+func (s *Server) startSsdpServer() {
+	if s.SsdpInterface == nil {
+		return
+	}
+
+	services := make([]string, 0)
+	for _, serv := range s.Device.ServiceList {
+		services = append(services, serv.ServiceType)
+	}
+
+	s.ssdpServer = &ssdp.Server{
+		Location:       "http://" + s.ListenAddress + s.DeviceDescPath,
+		ServerHeader:   s.ServerHeader,
+		DeviceType:     s.Device.DeviceType,
+		DeviceUDN:      s.Device.UDN,
+		ServiceList:    services,
+		Interface:      s.SsdpInterface,
+		MaxAge:         s.SsdpMaxAge,
+		NotifyInterval: s.SsdpNotifyInterval,
+		MulticastTTL:   s.SsdpMulticastTTL,
+		ErrorHandler:   s.ErrorHandler,
+		InfoHandler:    s.InfoHandler,
+	}
+
+	s.ssdpServer.Start()
 }
 
 func (s *Server) makeDeviceDescXML() (err error) {

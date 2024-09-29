@@ -1,6 +1,15 @@
 package upnp
 
-import "encoding/xml"
+import (
+	"encoding/xml"
+	"strings"
+)
+
+const (
+	DeviceXMLNamespace     = "urn:schemas-upnp-org:device-1-0"
+	DlnaDeviceXMLNamespace = "urn:schemas-dlna-org:device-1-0"
+	DlnaSecXMLNamespace    = "http://www.sec.co.kr/dlna"
+)
 
 type ErrorHandlerFunc func(err error, identity string)
 type InfoHandlerFunc func(msg string, identity string)
@@ -65,8 +74,31 @@ type Service struct {
 }
 
 type VendorXML struct {
-	XMLName xml.Name
-	Value   string `xml:",chardata"`
+	XMLName  xml.Name
+	XMLAttrs []xml.Attr
+	Value    any `xml:",innerxml"`
+}
+
+// MarshalXML generate XML output for VendorXML
+// Example:
+//
+//	device.VendorXML = append(device.VendorXML, upnp.VendorXML{
+//		XMLName: xml.Name{Local: "dlna:X_DLNADOC", Space: "urn:schemas-dlna-org:device-1-0"},
+//		Value:   "DMS-1.50",
+//	})
+//
+// will produce: <dlna:X_DLNADOC>DMS-1.50</dlna:X_DLNADOC>
+// and to <root> will be added xmlns:dlna="urn:schemas-dlna-org:device-1-0"
+func (v VendorXML) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	start.Name = v.XMLName
+	for _, attr := range v.XMLAttrs {
+		start.Attr = append(start.Attr, attr)
+	}
+	// namespace added to DeviceDesc root element, cut it off from Vendor's root element
+	if n := strings.Index(v.XMLName.Local, ":"); n > 0 {
+		start.Name.Space = ""
+	}
+	return e.EncodeElement(v.Value, start)
 }
 
 type Device struct {
@@ -124,11 +156,10 @@ type Device struct {
 	PresentationURL string `xml:"presentationURL,omitempty"`
 
 	// VendorXML Provide possibility to extend device Description.
-	// Not presents in documentation
 	VendorXML []VendorXML
 }
 
-type DeviceRoot struct {
+type DeviceDesc struct {
 	// Required
 	SpecVersion SpecVersion `xml:"specVersion"`
 
@@ -139,4 +170,42 @@ type DeviceRoot struct {
 	// the base URL is the URL from which the device description was retrieved
 	// (which is the preferred implementation; use of URLBase is no longer recommended). Single URL.
 	URLBase string `xml:"URLBase,omitempty"`
+}
+
+// MarshalXML generate XML output for DeviceDesc
+func (r DeviceDesc) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+
+	var err error
+
+	start.Name = xml.Name{Local: "root", Space: DeviceXMLNamespace}
+
+	// collect unique vendor's namespaces and add them to root element
+	spaces := map[string]string{}
+	for _, item := range r.Device.VendorXML {
+		n := strings.Index(item.XMLName.Local, ":")
+		if n > 0 && item.XMLName.Space != "" {
+			name := "xmlns:" + item.XMLName.Local[:n]
+			space := item.XMLName.Space
+			spaces[name] = space
+		}
+	}
+	for name, space := range spaces {
+		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Space: "", Local: name}, Value: space})
+	}
+
+	if err = e.EncodeToken(start); err != nil {
+		return err
+	}
+	if err = e.EncodeElement(r.SpecVersion, xml.StartElement{Name: xml.Name{Local: "specVersion"}}); err != nil {
+		return err
+	}
+	if err = e.EncodeElement(r.Device, xml.StartElement{Name: xml.Name{Local: "device"}}); err != nil {
+		return err
+	}
+	if r.URLBase != "" {
+		if err = e.EncodeElement(r.URLBase, xml.StartElement{Name: xml.Name{Local: "URLBase"}}); err != nil {
+			return err
+		}
+	}
+	return e.EncodeToken(xml.EndElement{Name: start.Name})
 }

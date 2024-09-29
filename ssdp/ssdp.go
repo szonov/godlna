@@ -59,12 +59,12 @@ type Server struct {
 	// Required: No defaults
 	DeviceType string
 
-	// Device UUID specified by UPnP vendor. (with or without "uuid:" prefix)
+	// Device UDN specified by UPnP vendor. (with or without "uuid:" prefix)
 	// Valid examples:
 	// - "uuid:da2cc462-0000-0000-0000-44fd2452e03f"
 	// - "da2cc462-0000-0000-0000-44fd2452e03f"
 	// Required: No defaults
-	DeviceUUID string
+	DeviceUDN string
 
 	// List of full service types as it appears in xml in <serviceType>.*</serviceType>
 	// Example: []string{
@@ -90,7 +90,6 @@ type Server struct {
 	// all handled notification type(nt) / search target(st)
 	// len = 3 of device + len(ServiceList)
 	targets []string
-	uuid    string
 
 	quit         chan struct{}
 	udpAddr      *net.UDPAddr
@@ -316,10 +315,10 @@ func (s *Server) sendByeBye() {
 }
 
 func (s *Server) usnFromTarget(target string) string {
-	if s.uuid == target {
-		return s.uuid
+	if s.DeviceUDN == target {
+		return s.DeviceUDN
 	}
-	return s.uuid + "::" + target
+	return s.DeviceUDN + "::" + target
 }
 
 func (s *Server) makeAliveMessage(target string) string {
@@ -363,8 +362,8 @@ func (s *Server) validateAndSetDefaults() error {
 		return fmt.Errorf("no DeviceType specified")
 	}
 
-	if s.DeviceUUID == "" {
-		return fmt.Errorf("no DeviceUUID specified")
+	if s.DeviceUDN == "" {
+		return fmt.Errorf("no DeviceUDN specified")
 	}
 
 	if s.Interface == nil {
@@ -389,12 +388,10 @@ func (s *Server) validateAndSetDefaults() error {
 		s.MulticastTTL = 4
 	}
 
-	if strings.HasPrefix(s.DeviceUUID, "uuid:") {
-		s.uuid = s.DeviceUUID
-	} else {
-		s.uuid = "uuid:" + s.DeviceUUID
+	if !strings.HasPrefix(s.DeviceUDN, "uuid:") {
+		s.DeviceUDN = "uuid:" + s.DeviceUDN
 	}
-	s.targets = append([]string{s.uuid, "upnp:rootdevice", s.DeviceType}, s.ServiceList...)
+	s.targets = append([]string{s.DeviceUDN, "upnp:rootdevice", s.DeviceType}, s.ServiceList...)
 
 	return nil
 }

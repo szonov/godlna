@@ -26,7 +26,12 @@ type Controller interface {
 
 type Server struct {
 	ListenAddress string
-	Controllers   []Controller
+	Device        *Device
+
+	// OnDeviceCreate runs after device created and assigned to server
+	OnDeviceCreate func(*Server) error
+
+	Controllers []Controller
 
 	// How to handle errors, useful for logs or something else.
 	// Optional: No defaults
@@ -54,9 +59,8 @@ func (s *Server) ListenAndServe() error {
 		return s.notifyError(err)
 	}
 
-	s.srv = &http.Server{
-		Addr:    s.ListenAddress,
-		Handler: s,
+	if err := s.makeDevice(); err != nil {
+		return s.notifyError(err)
 	}
 
 	for i := range s.Controllers {
@@ -66,6 +70,11 @@ func (s *Server) ListenAndServe() error {
 	}
 
 	s.notifyInfo(fmt.Sprintf("starting UPnP server on address %s", s.ListenAddress))
+
+	s.srv = &http.Server{
+		Addr:    s.ListenAddress,
+		Handler: s,
+	}
 
 	if err := s.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return s.notifyError(err)
@@ -98,6 +107,27 @@ func (s *Server) validateAndSetDefaults() error {
 		return fmt.Errorf("no ListenAddress specified")
 	}
 
+	return nil
+}
+
+func (s *Server) makeDevice() error {
+
+	friendlyName := DefaultFriendlyName()
+
+	s.Device = &Device{
+		DeviceType:   DefaultDeviceType,
+		FriendlyName: friendlyName,
+		UDN:          NewUDN(friendlyName),
+		Manufacturer: DefaultManufacturer,
+		ModelName:    DefaultModelName,
+	}
+
+	// Possibility to set correct properties to device
+	if s.OnDeviceCreate != nil {
+		if err := s.OnDeviceCreate(s); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

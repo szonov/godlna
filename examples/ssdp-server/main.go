@@ -23,7 +23,7 @@ func main() {
 	ssdpServer := &ssdp.Server{
 		Location:     "http://" + v4face.IP + "/device.xml",
 		DeviceType:   "urn:schemas-upnp-org:device:MediaServer:1",
-		DeviceUUID:   "uuid:da2cc462-0000-0000-0000-44fd2452e03f",
+		DeviceUDN:    "uuid:da2cc462-0000-0000-0000-44fd2452e03f",
 		ServiceList:  []string{"urn:schemas-upnp-org:service:ConnectionManager:1"},
 		Interface:    v4face.Interface,
 		ErrorHandler: errorHandler,

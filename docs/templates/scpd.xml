@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<!-- reference https://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.0-20080424.pdf -->
+<scpd xmlns="urn:schemas-upnp-org:service-1-0">
+    <specVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </specVersion>
+    <actionList>
+        <action>
+            <name>actionName</name>
+            <argumentList>
+                <argument>
+                    <name>formalParameterName</name>
+                    <direction>in xor out</direction>
+                    <retval/>
+                    <relatedStateVariable>stateVariableName</relatedStateVariable>
+                </argument>
+                <!-- Declarations for other arguments defined by UPnP Forum working committee (if any) go here -->
+            </argumentList>
+        </action>
+        <!-- Declarations for other actions defined by UPnP Forum working committee (if any) go here-->
+        <!-- Declarations for other actions added by UPnP vendor (if any) go here-->
+    </actionList>
+    <serviceStateTable>
+        <stateVariable sendEvents="yes">
+            <name>variableName</name>
+            <dataType>variable data type</dataType>
+            <defaultValue>default value</defaultValue>
+            <allowedValueList>
+                <allowedValue>enumerated value</allowedValue>
+                <!-- Other allowed values defined by UPnP Forum working committee (if any) go here-->
+            </allowedValueList>
+        </stateVariable>
+        <stateVariable sendEvents="yes">
+            <name>variableName</name>
+            <dataType>variable data type</dataType>
+            <defaultValue>default value</defaultValue>
+            <allowedValueRange>
+                <minimum>minimum value</minimum>
+                <maximum>maximum value</maximum>
+                <step>increment value</step>
+            </allowedValueRange>
+        </stateVariable>
+        <!-- Declarations for other state variables defined by UPnP Forum working committee (if any) go here-->
+        <!-- Declarations for other state variables added by UPnP vendor (if any) go here-->
+    </serviceStateTable>
+</scpd>

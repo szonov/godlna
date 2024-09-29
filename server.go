@@ -2,19 +2,23 @@ package upnp
 
 import (
 	"context"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime"
 	"time"
 )
 
 const (
-	Identifier string = "UPnP"
+	Identifier             string = "UPnP"
+	ResponseContentTypeXML        = `text/xml; charset="utf-8"`
 )
 
 type Controller interface {
 	// OnServerStart initialize controller variables, which depends on server
-	// Executed After Server created but before ListenAndServe
+	// Executed After Device created, but before ListenAndServe
+	// Good place to add services to Device
 	OnServerStart(s *Server) error
 
 	// Handle http request (if it handleable by controller)
@@ -25,13 +29,23 @@ type Controller interface {
 }
 
 type Server struct {
+	// Format ip:port
 	ListenAddress string
-	Device        *Device
+
+	// Direct creation is not allowed, use OnDeviceCreate callback
+	Device *Device
+
+	// Optional: Default is "/rootDesc.xml"
+	DeviceDescPath string
 
 	// OnDeviceCreate runs after device created and assigned to server
+	// Good place to add own fields to Device
 	OnDeviceCreate func(*Server) error
 
 	Controllers []Controller
+
+	// Optional: Default is "[runtime.GOOS]/[runtime.Version()] UPnP/1.0 GoUPnP/1.0"
+	ServerHeader string
 
 	// How to handle errors, useful for logs or something else.
 	// Optional: No defaults
@@ -41,7 +55,8 @@ type Server struct {
 	// Optional: No defaults
 	InfoHandler InfoHandlerFunc
 
-	srv *http.Server
+	srv           *http.Server
+	deviceDescXML []byte
 }
 
 func (s *Server) Start() *Server {
@@ -55,18 +70,27 @@ func (s *Server) Start() *Server {
 
 func (s *Server) ListenAndServe() error {
 
-	if err := s.validateAndSetDefaults(); err != nil {
+	var err error
+
+	if err = s.validateAndSetDefaults(); err != nil {
 		return s.notifyError(err)
 	}
 
-	if err := s.makeDevice(); err != nil {
+	// create device, and modify it using callback OnDeviceCreate
+	if err = s.makeDevice(); err != nil {
 		return s.notifyError(err)
 	}
 
+	// initialize all controllers
 	for i := range s.Controllers {
-		if err := s.Controllers[i].OnServerStart(s); err != nil {
+		if err = s.Controllers[i].OnServerStart(s); err != nil {
 			return s.notifyError(err)
 		}
+	}
+
+	// prepare device desc xml
+	if err = s.makeDeviceDescXML(); err != nil {
+		return err
 	}
 
 	s.notifyInfo(fmt.Sprintf("starting UPnP server on address %s", s.ListenAddress))
@@ -76,7 +100,7 @@ func (s *Server) ListenAndServe() error {
 		Handler: s,
 	}
 
-	if err := s.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+	if err = s.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return s.notifyError(err)
 	}
 
@@ -93,10 +117,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	s.notifyInfo(fmt.Sprintf("%s %s (%s)", r.Method, r.URL.Path, r.RemoteAddr))
 
+	w.Header().Set("Server", s.ServerHeader)
+
 	for i := range s.Controllers {
 		if s.Controllers[i].Handle(w, r) {
 			return
 		}
+	}
+
+	if r.URL.Path == s.DeviceDescPath {
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			w.Header().Set("Content-Type", ResponseContentTypeXML)
+			_, _ = w.Write(s.deviceDescXML)
+		} else {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+		return
 	}
 
 	w.WriteHeader(http.StatusNotFound)
@@ -106,7 +142,12 @@ func (s *Server) validateAndSetDefaults() error {
 	if s.ListenAddress == "" {
 		return fmt.Errorf("no ListenAddress specified")
 	}
-
+	if s.DeviceDescPath == "" {
+		s.DeviceDescPath = "/rootDesc.xml"
+	}
+	if s.ServerHeader == "" {
+		s.ServerHeader = fmt.Sprintf("%s/%s %s %s", runtime.GOOS, runtime.Version(), "UPnP/1.0", "GoUPnP/1.0")
+	}
 	return nil
 }
 
@@ -129,6 +170,18 @@ func (s *Server) makeDevice() error {
 		}
 	}
 	return nil
+}
+
+func (s *Server) makeDeviceDescXML() (err error) {
+	var b []byte
+	deviceDesc := DeviceDesc{
+		SpecVersion: SpecVersion{Major: 1},
+		Device:      *s.Device,
+	}
+	if b, err = xml.Marshal(deviceDesc); err == nil {
+		s.deviceDescXML = append([]byte(xml.Header), b...)
+	}
+	return
 }
 
 func (s *Server) notifyError(err error) error {

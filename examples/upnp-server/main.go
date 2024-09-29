@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/xml"
 	"fmt"
 	"github.com/szonov/go-upnp-lib"
 	"github.com/szonov/go-upnp-lib/network"
@@ -55,25 +54,7 @@ func main() {
 			new(IndexController),
 		},
 		OnDeviceCreate: func(s *upnp.Server) error {
-
-			infoHandler("call:OnDeviceCreate", "app")
-
-			s.Device.VendorXML = append(s.Device.VendorXML, upnp.VendorXML{
-				XMLName: xml.Name{Space: upnp.DlnaDeviceXMLNamespace, Local: "dlna:DLNADOC"},
-				Value:   "DMS-1.50",
-			})
-
-			deviceDesc := upnp.DeviceDesc{
-				SpecVersion: upnp.SpecVersion{Major: 1, Minor: 0},
-				Device:      *s.Device,
-			}
-
-			b, err := xml.MarshalIndent(deviceDesc, "", "  ")
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("\n%s\n", string(b))
+			infoHandler("call:OnDeviceCreate (time to setup Device)", "app")
 			return nil
 		},
 	}

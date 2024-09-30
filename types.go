@@ -149,7 +149,7 @@ type Device struct {
 	IconList []Icon `xml:"iconList>icon"`
 
 	// ServiceList Optional.
-	ServiceList []Service `xml:"serviceList>service"`
+	ServiceList []*Service `xml:"serviceList>service"`
 
 	// PresentationURL Recommended. URL to presentation for device.
 	// May be relative to base URL. Single URL.

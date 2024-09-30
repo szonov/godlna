@@ -90,18 +90,18 @@ func (s *Server) ListenAndServe() error {
 	var err error
 
 	if err = s.validateAndSetDefaults(); err != nil {
-		return s.notifyError(err)
+		return s.NotifyError(err)
 	}
 
 	// create device, and modify it using callback OnDeviceCreate
 	if err = s.makeDevice(); err != nil {
-		return s.notifyError(err)
+		return s.NotifyError(err)
 	}
 
 	// initialize all controllers
 	for i := range s.Controllers {
 		if err = s.Controllers[i].OnServerStart(s); err != nil {
-			return s.notifyError(err)
+			return s.NotifyError(err)
 		}
 	}
 
@@ -112,7 +112,7 @@ func (s *Server) ListenAndServe() error {
 
 	s.startSsdpServer()
 
-	s.notifyInfo(fmt.Sprintf("starting UPnP server on address %s", s.ListenAddress))
+	s.NotifyInfo(fmt.Sprintf("starting UPnP server on address %s", s.ListenAddress))
 
 	s.srv = &http.Server{
 		Addr:    s.ListenAddress,
@@ -120,7 +120,7 @@ func (s *Server) ListenAndServe() error {
 	}
 
 	if err = s.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		return s.notifyError(err)
+		return s.NotifyError(err)
 	}
 
 	return nil
@@ -130,15 +130,15 @@ func (s *Server) Shutdown() {
 	if s.ssdpServer != nil {
 		s.ssdpServer.Shutdown()
 	}
-	s.notifyInfo(fmt.Sprintf("stopping UPnP server on address %s", s.ListenAddress))
+	s.NotifyInfo(fmt.Sprintf("stopping UPnP server on address %s", s.ListenAddress))
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = s.notifyError(s.srv.Shutdown(ctx))
+	_ = s.NotifyError(s.srv.Shutdown(ctx))
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	s.notifyInfo(fmt.Sprintf("%s %s (%s)", r.Method, r.URL.Path, r.RemoteAddr))
+	s.NotifyInfo(fmt.Sprintf("%s %s (%s)", r.Method, r.URL.Path, r.RemoteAddr))
 
 	w.Header().Set("Server", s.ServerHeader)
 
@@ -234,14 +234,14 @@ func (s *Server) makeDeviceDescXML() (err error) {
 	return
 }
 
-func (s *Server) notifyError(err error) error {
+func (s *Server) NotifyError(err error) error {
 	if err != nil && s.ErrorHandler != nil {
 		s.ErrorHandler(err, Identifier)
 	}
 	return err
 }
 
-func (s *Server) notifyInfo(msg string) {
+func (s *Server) NotifyInfo(msg string) {
 	if s.InfoHandler != nil {
 		s.InfoHandler(msg, Identifier)
 	}

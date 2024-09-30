@@ -2,37 +2,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/szonov/go-upnp-lib"
-	"github.com/szonov/go-upnp-lib/network"
-	"net/http"
+	"github.com/szonov/go-upnp-lib/examples/upnp-server/contentdirectory"
+	"github.com/szonov/go-upnp-lib/examples/upnp-server/presentation"
 	"os"
 	"os/signal"
+
+	"github.com/szonov/go-upnp-lib"
+	"github.com/szonov/go-upnp-lib/network"
 )
-
-type IndexController struct {
-	notify upnp.InfoHandlerFunc
-}
-
-func (c *IndexController) notifyInfo(msg string) {
-	if c.notify != nil {
-		c.notify(msg, "INDEX")
-	}
-}
-
-func (c *IndexController) OnServerStart(s *upnp.Server) error {
-	c.notify = s.InfoHandler
-	c.notifyInfo("Initialized IndexController")
-	return nil
-}
-
-func (c *IndexController) Handle(w http.ResponseWriter, r *http.Request) bool {
-	if r.URL.Path == "/" {
-		c.notifyInfo("route `/` handled")
-		_, _ = w.Write([]byte("Index Page"))
-		return true
-	}
-	return false
-}
 
 func main() {
 
@@ -48,11 +25,12 @@ func main() {
 
 	upnpServer := &upnp.Server{
 		ListenAddress: v4face.IP + ":55975",
-		SsdpInterface: v4face.Interface,
-		ErrorHandler:  errorHandler,
-		InfoHandler:   infoHandler,
+		//SsdpInterface: v4face.Interface,
+		ErrorHandler: errorHandler,
+		InfoHandler:  infoHandler,
 		Controllers: []upnp.Controller{
-			new(IndexController),
+			new(presentation.DeviceInfoController),
+			new(contentdirectory.ServiceController),
 		},
 		OnDeviceCreate: func(s *upnp.Server) error {
 			infoHandler("call:OnDeviceCreate (time to setup Device)", "app")

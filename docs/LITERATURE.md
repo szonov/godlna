@@ -12,3 +12,6 @@
 
 ### ConnectionManager v1
 - http://upnp.org/specs/av/UPnP-av-ConnectionManager-v1-Service.pdf
+
+### X_MS_MediaReceiverRegistrar v1 
+https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-drmnd/5d37515e-7a63-4709-8258-8fd4e0ed4482

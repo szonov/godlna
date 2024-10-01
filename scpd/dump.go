@@ -24,19 +24,22 @@ func (a dumpArgument) toString(nameLen int, typeLen int) string {
 
 	t := make([]string, 0)
 	if a.argEvents {
-		t = append(t, ` events:"yes"`)
+		t = append(t, `events:"yes"`)
 	}
 	if a.argDefault != "" {
-		t = append(t, fmt.Sprintf(` default:"%s"`, a.argDefault))
+		t = append(t, fmt.Sprintf(`default:"%s"`, a.argDefault))
 	}
 	if a.argRange != "" {
-		t = append(t, fmt.Sprintf(` range:"%s"`, a.argRange))
+		t = append(t, fmt.Sprintf(`range:"%s"`, a.argRange))
 	}
 	if a.argAllowed != "" {
-		t = append(t, fmt.Sprintf(` allowed:"%s"`, a.argAllowed))
+		t = append(t, fmt.Sprintf(`allowed:"%s"`, a.argAllowed))
 	}
-	tag := fmt.Sprintf(`scpd:"%s"%s`, a.argVar, strings.Join(t, ""))
 
+	tag := strings.Join(t, " ")
+	if tag == "" {
+		return fmt.Sprintf("\t%s %s\n", nam, a.argType)
+	}
 	return fmt.Sprintf("\t%s %s `%s`\n", nam, typ, tag)
 }
 

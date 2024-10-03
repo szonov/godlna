@@ -30,8 +30,8 @@ func main() {
 		ErrorHandler: errorHandler,
 		InfoHandler:  infoHandler,
 		Controllers: []upnp.Controller{
-			new(presentation.DeviceInfoController),
-			contentdirectory.NewController(),
+			presentation.NewController(),
+			contentdirectory.NewServiceController(),
 		},
 		OnDeviceCreate: func(s *upnp.Server) error {
 			infoHandler("call:OnDeviceCreate (time to setup Device)", "app")

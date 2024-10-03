@@ -1,15 +1,14 @@
 package contentdirectory
 
-import "github.com/szonov/go-upnp-lib/scpd"
+import "github.com/szonov/go-upnp-lib/handler"
 
-func (ctl *Controller) createHandler() *Controller {
-	ctl.Handler = &scpd.Handler{
+func (ctl *ServiceController) createHandler() *ServiceController {
+	ctl.Handler = &handler.Handler{
 		ServiceType: ctl.Service.ServiceType,
-		Actions: scpd.HandlerActionMap{
-			"Browse": func() *scpd.HandlerAction {
-				return scpd.NewHandlerAction(ctl.Browse, &ArgInBrowse{}, &ArgOutBrowse{})
+		Actions: handler.ActionMap{
+			"Browse": func() *handler.Action {
+				return handler.NewAction(ctl.Browse, &ArgInBrowse{}, &ArgOutBrowse{})
 			},
-			// "Browse": {Func: me.Browse, In: &ArgInBrowse{}, Out: &ArgOutBrowse{}},
 		},
 	}
 	return ctl

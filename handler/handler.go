@@ -1,7 +1,8 @@
-package scpd
+package handler
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"github.com/szonov/go-upnp-lib/soap"
 	"net/http"
@@ -11,14 +12,21 @@ import (
 
 const ResponseContentTypeXML = `text/xml; charset="utf-8"`
 
-type HandlerActionDefFunc func() *HandlerAction
-type HandlerActionMap map[string]HandlerActionDefFunc
-type HandlerActionFunc func(action *HandlerAction) error
+type ActionCustomResponse struct {
+}
 
-// HandlerAction definition of handler
-type HandlerAction struct {
+func (a *ActionCustomResponse) Error() string {
+	return fmt.Sprintf("controller action respond with own response, stop processing")
+}
+
+type ActionDefFunc func() *Action
+type ActionMap map[string]ActionDefFunc
+type ActionExecFunc func(action *Action) error
+
+// Action definition of handler
+type Action struct {
 	// should be initialized before processing action
-	f      HandlerActionFunc
+	f      ActionExecFunc
 	ArgIn  any
 	ArgOut any
 	// added on action processing
@@ -27,7 +35,13 @@ type HandlerAction struct {
 	Ctx         HttpContext
 }
 
-func (a *HandlerAction) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+// Stop gives possibility to return from controllers action custom error,
+// and prevent handler from output anything (just stop operation)
+func (a *Action) Stop() error {
+	return &ActionCustomResponse{}
+}
+
+func (a *Action) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	start.Name.Local = "u:" + a.Name + "Response"
 	start.Attr = []xml.Attr{
 		{Name: xml.Name{Local: "xmlns:u"}, Value: a.ServiceType},
@@ -35,13 +49,13 @@ func (a *HandlerAction) MarshalXML(e *xml.Encoder, start xml.StartElement) error
 	return e.EncodeElement(a.ArgOut, start)
 }
 
-func NewHandlerAction(f HandlerActionFunc, in any, out any) *HandlerAction {
-	return &HandlerAction{f: f, ArgIn: in, ArgOut: out}
+func NewAction(f ActionExecFunc, in any, out any) *Action {
+	return &Action{f: f, ArgIn: in, ArgOut: out}
 }
 
 type Handler struct {
 	ServiceType string
-	Actions     HandlerActionMap
+	Actions     ActionMap
 	xmlBody     []byte
 }
 
@@ -91,7 +105,9 @@ func (h *Handler) HandleControlURL(ctx HttpContext) {
 	}
 	// handle action
 	if err := action.f(action); err != nil {
-		h.sendError(ctx, err, http.StatusInternalServerError)
+		if !errors.Is(err, &ActionCustomResponse{}) {
+			h.sendError(ctx, err, http.StatusInternalServerError)
+		}
 		return
 	}
 	// send success response
@@ -111,7 +127,7 @@ func (h *Handler) sendXmlResponse(ctx HttpContext, xmlBody []byte, statusCode ..
 	ctx.
 		SetHeader("Content-Length", strconv.Itoa(len(xmlBody))).
 		SetHeader("Content-Type", ResponseContentTypeXML).
-		SetHeader("Connection", "close").
+		SetHeader("EXT", "").
 		SetBody(xmlBody).
 		Send(statusCode...)
 }
@@ -126,9 +142,8 @@ func (h *Handler) sendEnvelope(ctx HttpContext, env *soap.Envelope, statusCode .
 	h.sendXmlResponse(ctx, body, statusCode...)
 }
 
-func (h *Handler) sendAction(ctx HttpContext, action *HandlerAction, statusCode ...int) {
+func (h *Handler) sendAction(ctx HttpContext, action *Action, statusCode ...int) {
 	env := soap.NewEnvelope(action)
-	ctx.SetHeader("EXT", "")
 	h.sendEnvelope(ctx, env, statusCode...)
 }
 

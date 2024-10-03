@@ -3,17 +3,17 @@ package contentdirectory
 import (
 	"github.com/szonov/go-upnp-lib"
 	"github.com/szonov/go-upnp-lib/device"
-	"github.com/szonov/go-upnp-lib/scpd"
+	"github.com/szonov/go-upnp-lib/handler"
 	"net/http"
 )
 
-type Controller struct {
-	Handler *scpd.Handler
+type ServiceController struct {
+	Handler *handler.Handler
 	Service *device.Service
 }
 
-func NewController() *Controller {
-	ctl := &Controller{
+func NewServiceController() *ServiceController {
+	ctl := &ServiceController{
 		Service: &device.Service{
 			ServiceType: ServiceType,
 			ServiceId:   ServiceId,
@@ -26,7 +26,7 @@ func NewController() *Controller {
 }
 
 // OnServerStart implements upnp.Controller interface
-func (ctl *Controller) OnServerStart(server *upnp.Server) error {
+func (ctl *ServiceController) OnServerStart(server *upnp.Server) error {
 	if err := ctl.Handler.Init(); err != nil {
 		return err
 	}
@@ -35,15 +35,15 @@ func (ctl *Controller) OnServerStart(server *upnp.Server) error {
 }
 
 // Handle implements upnp.Controller interface
-func (ctl *Controller) Handle(w http.ResponseWriter, r *http.Request) bool {
+func (ctl *ServiceController) Handle(w http.ResponseWriter, r *http.Request) bool {
 
 	if r.URL.Path == ctl.Service.SCPDURL {
-		ctl.Handler.HandleSCPDURL(scpd.NewHttpContext(w, r))
+		ctl.Handler.HandleSCPDURL(handler.NewHttpContext(w, r))
 		return true
 	}
 
 	if r.URL.Path == ctl.Service.ControlURL {
-		ctl.Handler.HandleControlURL(scpd.NewHttpContext(w, r))
+		ctl.Handler.HandleControlURL(handler.NewHttpContext(w, r))
 		return true
 	}
 
@@ -51,7 +51,7 @@ func (ctl *Controller) Handle(w http.ResponseWriter, r *http.Request) bool {
 	return false
 }
 
-func (ctl *Controller) Browse(action *scpd.HandlerAction) error {
+func (ctl *ServiceController) Browse(action *handler.Action) error {
 	//in := action.ArgIn.(*ArgInBrowse)
 	out := action.ArgOut.(*ArgOutBrowse)
 
@@ -60,7 +60,5 @@ func (ctl *Controller) Browse(action *scpd.HandlerAction) error {
 	out.TotalMatches = 100
 	out.UpdateID = 3
 
-	//return fmt.Errorf("Test error")
-	//return soap.NewUPnPError(300, fmt.Errorf("Test UPnP Error"))
 	return nil
 }

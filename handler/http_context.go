@@ -1,4 +1,4 @@
-package scpd
+package handler
 
 import (
 	"io"
@@ -8,7 +8,7 @@ import (
 // HttpContext define list of used functionality by scpd handler,
 // keep in mind usage of other frameworks... fiber, gin, etc...
 // scpd Handler do not use SetParam, GetParam at all, but it can help with
-// realisation controllers, when defined methods no enough, for example
+// controller developing, when defined methods no enough, for example
 // for accessing to *http.Request
 // before calling scpd handler:
 //

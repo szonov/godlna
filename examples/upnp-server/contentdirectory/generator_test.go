@@ -4,26 +4,8 @@ import (
 	"fmt"
 	"github.com/szonov/go-upnp-lib/handler"
 	"github.com/szonov/go-upnp-lib/scpd"
-	"io"
-	"os"
 	"testing"
 )
-
-func loadScpdFromFile(file string) (*scpd.SCPD, error) {
-	fp, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		_ = fp.Close()
-	}()
-	xmlData, err := io.ReadAll(fp)
-	if err != nil {
-		return nil, err
-	}
-	serviceSCPD := new(scpd.SCPD)
-	return serviceSCPD, serviceSCPD.Load(xmlData)
-}
 
 func TestGenerateService(t *testing.T) {
 	var err error

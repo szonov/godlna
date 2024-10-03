@@ -6,3 +6,5 @@ require (
 	golang.org/x/net v0.29.0
 	golang.org/x/sys v0.25.0 // indirect
 )
+
+replace github.com/szonov/go-upnp-lib => ./

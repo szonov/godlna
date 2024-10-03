@@ -159,10 +159,6 @@ func (v *UI4) UnmarshalText(b []byte) error {
 // URI 'uri' presentation of SCPD dataType
 type URI url.URL
 
-func (v *URI) Type() string {
-	return "uri"
-}
-
 func (v *URI) String() string {
 	return (*url.URL)(v).String()
 }

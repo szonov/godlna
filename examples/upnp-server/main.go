@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/szonov/go-upnp-lib/examples/upnp-server/contentdirectory"
-	"github.com/szonov/go-upnp-lib/examples/upnp-server/presentation"
 	"os"
 	"os/signal"
+
+	"github.com/szonov/go-upnp-lib/examples/upnp-server/contentdirectory"
+	"github.com/szonov/go-upnp-lib/examples/upnp-server/presentation"
 
 	"github.com/szonov/go-upnp-lib"
 	"github.com/szonov/go-upnp-lib/network"
@@ -30,7 +31,7 @@ func main() {
 		InfoHandler:  infoHandler,
 		Controllers: []upnp.Controller{
 			new(presentation.DeviceInfoController),
-			new(contentdirectory.ServiceController),
+			contentdirectory.NewController(),
 		},
 		OnDeviceCreate: func(s *upnp.Server) error {
 			infoHandler("call:OnDeviceCreate (time to setup Device)", "app")
@@ -41,7 +42,7 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
-		_ = <-c
+		<-c
 		// terminate ssdp server
 		infoHandler("gracefully shutting down...", "app")
 		upnpServer.Shutdown()

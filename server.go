@@ -5,11 +5,13 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/szonov/go-upnp-lib/ssdp"
 	"net"
 	"net/http"
 	"runtime"
 	"time"
+
+	"github.com/szonov/go-upnp-lib/device"
+	"github.com/szonov/go-upnp-lib/ssdp"
 )
 
 const (
@@ -35,7 +37,7 @@ type Server struct {
 	ListenAddress string
 
 	// Direct creation is not allowed, use OnDeviceCreate callback
-	Device *Device
+	Device *device.Device
 
 	// Optional: Default is "/rootDesc.xml"
 	DeviceDescPath string
@@ -178,7 +180,7 @@ func (s *Server) makeDevice() error {
 
 	friendlyName := DefaultFriendlyName()
 
-	s.Device = &Device{
+	s.Device = &device.Device{
 		DeviceType:   DefaultDeviceType,
 		FriendlyName: friendlyName,
 		UDN:          NewUDN(friendlyName),
@@ -224,8 +226,8 @@ func (s *Server) startSsdpServer() {
 
 func (s *Server) makeDeviceDescXML() (err error) {
 	var b []byte
-	deviceDesc := DeviceDesc{
-		SpecVersion: SpecVersion{Major: 1},
+	deviceDesc := device.DeviceDesc{
+		SpecVersion: device.SpecVersion{Major: 1},
 		Device:      *s.Device,
 	}
 	if b, err = xml.Marshal(deviceDesc); err == nil {

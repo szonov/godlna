@@ -98,7 +98,7 @@ var DataTypeMap = map[string]string{
 // For now implementing only few types, appears in ContentDirectory scpd
 // and several additional for testing...
 //
-//➜ cat scpd.xml| grep -oE "<dataType>.+</dataType>" | sort | uniq
+//➜ cat generator_template.xml| grep -oE "<dataType>.+</dataType>" | sort | uniq
 //<dataType>string</dataType>
 //<dataType>ui4</dataType>
 //<dataType>uri</dataType>

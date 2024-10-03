@@ -114,6 +114,11 @@ func (h *Handler) HandleControlURL(ctx HttpContext) {
 	h.sendAction(ctx, action)
 }
 
+func (h *Handler) HandleEventSubURL(ctx HttpContext) {
+	// todo: HandleEventSubURL
+	h.sendError(ctx, fmt.Errorf("Not implemented"), http.StatusNotImplemented)
+}
+
 func (h *Handler) detectSoapAction(ctx HttpContext) string {
 	header := strings.Trim(ctx.GetHeader("SoapAction"), " \"")
 	parts := strings.Split(header, "#")

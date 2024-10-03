@@ -7,6 +7,11 @@ import (
 	"net/http"
 )
 
+const (
+	ServiceType = "urn:schemas-upnp-org:service:ContentDirectory:1"
+	ServiceId   = "urn:upnp-org:serviceId:ContentDirectory"
+)
+
 type ServiceController struct {
 	Handler *handler.Handler
 	Service *device.Service
@@ -47,7 +52,11 @@ func (ctl *ServiceController) Handle(w http.ResponseWriter, r *http.Request) boo
 		return true
 	}
 
-	// TODO: Eventing
+	if r.URL.Path == ctl.Service.EventSubURL {
+		ctl.Handler.HandleEventSubURL(handler.NewHttpContext(w, r))
+		return true
+	}
+
 	return false
 }
 

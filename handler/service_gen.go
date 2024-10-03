@@ -32,7 +32,7 @@ type ServiceGen struct {
 	// ArgumentsFile for example "arguments.go"
 	ArgumentsFile string
 
-	// CreateHandlerFile for example "handler.go"
+	// CreateHandlerFile for example "handlers.go"
 	CreateHandlerFile string
 
 	dir         string

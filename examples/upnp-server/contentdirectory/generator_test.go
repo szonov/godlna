@@ -23,7 +23,7 @@ func TestGenerateService(t *testing.T) {
 		ControllerName:    "ServiceController",
 		ControllerFile:    "controller.go",
 		ArgumentsFile:     "arguments.go",
-		CreateHandlerFile: "handler.go",
+		CreateHandlerFile: "handlers.go",
 	}
 
 	if err = serviceGen.GenerateService(); err != nil {

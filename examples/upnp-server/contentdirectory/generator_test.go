@@ -26,9 +26,10 @@ func loadScpdFromFile(file string) (*scpd.SCPD, error) {
 }
 
 func TestGenerateService(t *testing.T) {
+	var err error
 
-	serviceSCPD, err := loadScpdFromFile("./generator_template.xml")
-	if err != nil {
+	serviceSCPD := new(scpd.SCPD)
+	if err = serviceSCPD.LoadFile("./generator_template.xml"); err != nil {
 		t.Fatal(err)
 	}
 

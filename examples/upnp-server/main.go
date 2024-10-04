@@ -26,9 +26,9 @@ func main() {
 
 	upnpServer := &upnp.Server{
 		ListenAddress: v4face.IP + ":55975",
-		//SsdpInterface: v4face.Interface,
-		ErrorHandler: errorHandler,
-		InfoHandler:  infoHandler,
+		SsdpInterface: v4face.Interface,
+		ErrorHandler:  errorHandler,
+		InfoHandler:   infoHandler,
 		Controllers: []upnp.Controller{
 			presentation.NewController(),
 			contentdirectory.NewServiceController(),

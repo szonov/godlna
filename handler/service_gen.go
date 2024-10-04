@@ -265,7 +265,8 @@ func (gen *ServiceGen) generateHandlerConfig() error {
 		},
 	}
 	return ctl
-}`
+}
+`
 	code := fmt.Sprintf(tmpl, gen.ControllerName, actionsBody)
 
 	return gen.addCodeToFile(

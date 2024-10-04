@@ -64,17 +64,6 @@ func (m *scpdMaker) parseAction(action *scpd.Action, in, out any) error {
 
 func (m *scpdMaker) parseActionArgs(action *scpd.Action, direction string, args any) error {
 
-	// rv0 := reflect.ValueOf(args)
-	// v2 := reflect.New(rv0.Type()).Elem().Type()
-
-	// up := unsafe.Pointer(&args)
-	// fmt.Printf("ARG:%#v\n", args)
-	// fmt.Printf("KIN:%#v\n", rv0.Kind())
-	// fmt.Printf(" V2:%#v\n", v2)
-	// fmt.Printf(" UP:%#v\n", up)
-
-	//return fmt.Errorf("Sss")
-
 	if reflect.ValueOf(args).Kind() != reflect.Pointer {
 		return fmt.Errorf("[SCPD] %s[%s]: must be pointer of struct", action.Name, direction)
 	}

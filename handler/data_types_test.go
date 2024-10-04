@@ -1,4 +1,4 @@
-package scpd
+package handler
 
 import (
 	"encoding/xml"

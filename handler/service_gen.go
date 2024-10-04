@@ -201,7 +201,7 @@ func (gen *ServiceGen) readActions() ([]genAction, error) {
 			}
 
 			var ok bool
-			if a.argType, ok = scpd.DataTypeMap[variable.DataType]; !ok {
+			if a.argType, ok = DataTypeMap[variable.DataType]; !ok {
 				fmt.Printf("WARN: %s %s:%s unhandled variable type '%s'\n", arg.Name, arg.Direction, arg.Variable, variable.DataType)
 				a.argType = "string"
 			}

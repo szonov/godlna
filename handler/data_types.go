@@ -1,4 +1,4 @@
-package scpd
+package handler
 
 import (
 	"net/url"
@@ -6,11 +6,11 @@ import (
 )
 
 var DataTypeMap = map[string]string{
-	"ui1":    "scpd.UI1",
-	"ui2":    "scpd.UI2",
-	"ui4":    "scpd.UI4",
+	"ui1":    "handler.UI1",
+	"ui2":    "handler.UI2",
+	"ui4":    "handler.UI4",
 	"string": "string",
-	"uri":    "scpd.URI",
+	"uri":    "handler.URI",
 }
 
 // DONE [ui1] :: UI1

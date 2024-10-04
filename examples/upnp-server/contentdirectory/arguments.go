@@ -1,7 +1,7 @@
 package contentdirectory
 
 import (
-	"github.com/szonov/go-upnp-lib/scpd"
+	"github.com/szonov/go-upnp-lib/handler"
 )
 
 type ArgInGetSearchCapabilities struct {
@@ -17,35 +17,35 @@ type ArgOutGetSortCapabilities struct {
 type ArgInGetSystemUpdateID struct {
 }
 type ArgOutGetSystemUpdateID struct {
-	Id scpd.UI4 `scpd:"SystemUpdateID,ui4,events"`
+	Id handler.UI4 `scpd:"SystemUpdateID,ui4,events"`
 }
 type ArgInBrowse struct {
-	ObjectID       string   `scpd:"A_ARG_TYPE_ObjectID,string"`
-	BrowseFlag     string   `scpd:"A_ARG_TYPE_BrowseFlag,string BrowseMetadata,BrowseDirectChildren"`
-	Filter         string   `scpd:"A_ARG_TYPE_Filter,string"`
-	StartingIndex  scpd.UI4 `scpd:"A_ARG_TYPE_Index,ui4"`
-	RequestedCount scpd.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
-	SortCriteria   string   `scpd:"A_ARG_TYPE_SortCriteria,string"`
+	ObjectID       string      `scpd:"A_ARG_TYPE_ObjectID,string"`
+	BrowseFlag     string      `scpd:"A_ARG_TYPE_BrowseFlag,string BrowseMetadata,BrowseDirectChildren"`
+	Filter         string      `scpd:"A_ARG_TYPE_Filter,string"`
+	StartingIndex  handler.UI4 `scpd:"A_ARG_TYPE_Index,ui4"`
+	RequestedCount handler.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
+	SortCriteria   string      `scpd:"A_ARG_TYPE_SortCriteria,string"`
 }
 type ArgOutBrowse struct {
-	Result         string   `scpd:"A_ARG_TYPE_Result,string"`
-	NumberReturned scpd.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
-	TotalMatches   scpd.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
-	UpdateID       scpd.UI4 `scpd:"A_ARG_TYPE_UpdateID,ui4"`
+	Result         string      `scpd:"A_ARG_TYPE_Result,string"`
+	NumberReturned handler.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
+	TotalMatches   handler.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
+	UpdateID       handler.UI4 `scpd:"A_ARG_TYPE_UpdateID,ui4"`
 }
 type ArgInSearch struct {
-	ContainerID    string   `scpd:"A_ARG_TYPE_ObjectID,string"`
-	SearchCriteria string   `scpd:"A_ARG_TYPE_SearchCriteria,string"`
-	Filter         string   `scpd:"A_ARG_TYPE_Filter,string"`
-	StartingIndex  scpd.UI4 `scpd:"A_ARG_TYPE_Index,ui4"`
-	RequestedCount scpd.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
-	SortCriteria   string   `scpd:"A_ARG_TYPE_SortCriteria,string"`
+	ContainerID    string      `scpd:"A_ARG_TYPE_ObjectID,string"`
+	SearchCriteria string      `scpd:"A_ARG_TYPE_SearchCriteria,string"`
+	Filter         string      `scpd:"A_ARG_TYPE_Filter,string"`
+	StartingIndex  handler.UI4 `scpd:"A_ARG_TYPE_Index,ui4"`
+	RequestedCount handler.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
+	SortCriteria   string      `scpd:"A_ARG_TYPE_SortCriteria,string"`
 }
 type ArgOutSearch struct {
-	Result         string   `scpd:"A_ARG_TYPE_Result,string"`
-	NumberReturned scpd.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
-	TotalMatches   scpd.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
-	UpdateID       scpd.UI4 `scpd:"A_ARG_TYPE_UpdateID,ui4"`
+	Result         string      `scpd:"A_ARG_TYPE_Result,string"`
+	NumberReturned handler.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
+	TotalMatches   handler.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
+	UpdateID       handler.UI4 `scpd:"A_ARG_TYPE_UpdateID,ui4"`
 }
 type ArgInCreateObject struct {
 	ContainerID string `scpd:"A_ARG_TYPE_ObjectID,string"`
@@ -68,26 +68,26 @@ type ArgInUpdateObject struct {
 type ArgOutUpdateObject struct {
 }
 type ArgInImportResource struct {
-	SourceURI      scpd.URI `scpd:"A_ARG_TYPE_URI,uri"`
-	DestinationURI scpd.URI `scpd:"A_ARG_TYPE_URI,uri"`
+	SourceURI      handler.URI `scpd:"A_ARG_TYPE_URI,uri"`
+	DestinationURI handler.URI `scpd:"A_ARG_TYPE_URI,uri"`
 }
 type ArgOutImportResource struct {
-	TransferID scpd.UI4 `scpd:"A_ARG_TYPE_TransferID,ui4"`
+	TransferID handler.UI4 `scpd:"A_ARG_TYPE_TransferID,ui4"`
 }
 type ArgInExportResource struct {
-	SourceURI      scpd.URI `scpd:"A_ARG_TYPE_URI,uri"`
-	DestinationURI scpd.URI `scpd:"A_ARG_TYPE_URI,uri"`
+	SourceURI      handler.URI `scpd:"A_ARG_TYPE_URI,uri"`
+	DestinationURI handler.URI `scpd:"A_ARG_TYPE_URI,uri"`
 }
 type ArgOutExportResource struct {
-	TransferID scpd.UI4 `scpd:"A_ARG_TYPE_TransferID,ui4"`
+	TransferID handler.UI4 `scpd:"A_ARG_TYPE_TransferID,ui4"`
 }
 type ArgInStopTransferResource struct {
-	TransferID scpd.UI4 `scpd:"A_ARG_TYPE_TransferID,ui4"`
+	TransferID handler.UI4 `scpd:"A_ARG_TYPE_TransferID,ui4"`
 }
 type ArgOutStopTransferResource struct {
 }
 type ArgInGetTransferProgress struct {
-	TransferID scpd.UI4 `scpd:"A_ARG_TYPE_TransferID,ui4"`
+	TransferID handler.UI4 `scpd:"A_ARG_TYPE_TransferID,ui4"`
 }
 type ArgOutGetTransferProgress struct {
 	TransferStatus string `scpd:"A_ARG_TYPE_TransferStatus,string COMPLETED,ERROR,IN_PROGRESS,STOPPED"`
@@ -95,7 +95,7 @@ type ArgOutGetTransferProgress struct {
 	TransferTotal  string `scpd:"A_ARG_TYPE_TransferTotal,string"`
 }
 type ArgInDeleteResource struct {
-	ResourceURI scpd.URI `scpd:"A_ARG_TYPE_URI,uri"`
+	ResourceURI handler.URI `scpd:"A_ARG_TYPE_URI,uri"`
 }
 type ArgOutDeleteResource struct {
 }

@@ -18,11 +18,11 @@ func TestGenerateService(t *testing.T) {
 		ServiceSCPD:       serviceSCPD,
 		ServiceType:       "urn:schemas-upnp-org:service:ContentDirectory:1",
 		ServiceId:         "urn:upnp-org:serviceId:ContentDirectory",
-		Directory:         ".",
+		Directory:         "cds1",
 		ControllerName:    "ServiceController",
 		ControllerFile:    "controller.go",
 		ArgumentsFile:     "arguments.go",
-		CreateHandlerFile: "handlers.go",
+		CreateHandlerFile: "actions.go",
 	}
 
 	if err = serviceGen.GenerateService(); err != nil {

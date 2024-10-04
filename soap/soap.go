@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 const (
@@ -130,4 +131,31 @@ func NewErrEnvelope(err error, faultString ...string) *Envelope {
 			Data: NewFailed(err),
 		},
 	})
+}
+
+func UnmarshalEnvelopeBody2[T any](r io.Reader, args T) (T, error) {
+	var body []byte
+	var err error
+	if body, err = GetEnvelopeBody(r); err != nil {
+		return args, err
+	}
+	err = xml.Unmarshal(body, args)
+	return args, err
+}
+
+type Action struct {
+	Name    string
+	Service string
+}
+
+func DetectAction(soapActionHeader string) *Action {
+	header := strings.Trim(soapActionHeader, " \"")
+	parts := strings.Split(header, "#")
+	if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+		return &Action{
+			Service: parts[0],
+			Name:    parts[1],
+		}
+	}
+	return nil
 }

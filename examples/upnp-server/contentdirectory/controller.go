@@ -18,16 +18,19 @@ type ServiceController struct {
 }
 
 func NewServiceController() *ServiceController {
-	ctl := &ServiceController{
-		Service: &device.Service{
-			ServiceType: ServiceType,
-			ServiceId:   ServiceId,
-			SCPDURL:     "/ContentDirectory.xml",
-			ControlURL:  "/ctl/ContentDirectory",
-			EventSubURL: "/evt/ContentDirectory",
-		},
+	ctl := new(ServiceController)
+	ctl.Service = &device.Service{
+		ServiceType: ServiceType,
+		ServiceId:   ServiceId,
+		SCPDURL:     "/ContentDirectory.xml",
+		ControlURL:  "/ctl/ContentDirectory",
+		EventSubURL: "/evt/ContentDirectory",
 	}
-	return ctl.createHandler()
+	ctl.Handler = &handler.Handler{
+		Service: ctl.Service.ServiceType,
+		Actions: ctl.createActions(),
+	}
+	return ctl
 }
 
 // OnServerStart implements upnp.Controller interface
@@ -43,90 +46,90 @@ func (ctl *ServiceController) OnServerStart(server *upnp.Server) error {
 func (ctl *ServiceController) Handle(w http.ResponseWriter, r *http.Request) bool {
 
 	if r.URL.Path == ctl.Service.SCPDURL {
-		ctl.Handler.HandleSCPDURL(handler.NewHttpContext(w, r))
+		ctl.Handler.HandleSCPDURL(w, r)
 		return true
 	}
 
 	if r.URL.Path == ctl.Service.ControlURL {
-		ctl.Handler.HandleControlURL(handler.NewHttpContext(w, r))
+		ctl.Handler.HandleControlURL(w, r)
 		return true
 	}
 
 	if r.URL.Path == ctl.Service.EventSubURL {
-		ctl.Handler.HandleEventSubURL(handler.NewHttpContext(w, r))
+		ctl.Handler.HandleEventSubURL(w, r)
 		return true
 	}
 
 	return false
 }
 
-func (ctl *ServiceController) GetSearchCapabilities(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInGetSearchCapabilities)
-	//out := action.ArgOut.(*ArgOutGetSearchCapabilities)
+func (ctl *ServiceController) GetSearchCapabilities(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInGetSearchCapabilities)
+	//out := ctx.ArgOut.(*ArgOutGetSearchCapabilities)
 	return nil
 }
-func (ctl *ServiceController) GetSortCapabilities(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInGetSortCapabilities)
-	//out := action.ArgOut.(*ArgOutGetSortCapabilities)
+func (ctl *ServiceController) GetSortCapabilities(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInGetSortCapabilities)
+	//out := ctx.ArgOut.(*ArgOutGetSortCapabilities)
 	return nil
 }
-func (ctl *ServiceController) GetSystemUpdateID(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInGetSystemUpdateID)
-	//out := action.ArgOut.(*ArgOutGetSystemUpdateID)
+func (ctl *ServiceController) GetSystemUpdateID(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInGetSystemUpdateID)
+	//out := ctx.ArgOut.(*ArgOutGetSystemUpdateID)
 	return nil
 }
-func (ctl *ServiceController) Browse(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInBrowse)
-	//out := action.ArgOut.(*ArgOutBrowse)
+func (ctl *ServiceController) Browse(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInBrowse)
+	//out := ctx.ArgOut.(*ArgOutBrowse)
 	return nil
 }
-func (ctl *ServiceController) Search(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInSearch)
-	//out := action.ArgOut.(*ArgOutSearch)
+func (ctl *ServiceController) Search(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInSearch)
+	//out := ctx.ArgOut.(*ArgOutSearch)
 	return nil
 }
-func (ctl *ServiceController) CreateObject(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInCreateObject)
-	//out := action.ArgOut.(*ArgOutCreateObject)
+func (ctl *ServiceController) CreateObject(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInCreateObject)
+	//out := ctx.ArgOut.(*ArgOutCreateObject)
 	return nil
 }
-func (ctl *ServiceController) DestroyObject(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInDestroyObject)
-	//out := action.ArgOut.(*ArgOutDestroyObject)
+func (ctl *ServiceController) DestroyObject(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInDestroyObject)
+	//out := ctx.ArgOut.(*ArgOutDestroyObject)
 	return nil
 }
-func (ctl *ServiceController) UpdateObject(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInUpdateObject)
-	//out := action.ArgOut.(*ArgOutUpdateObject)
+func (ctl *ServiceController) UpdateObject(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInUpdateObject)
+	//out := ctx.ArgOut.(*ArgOutUpdateObject)
 	return nil
 }
-func (ctl *ServiceController) ImportResource(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInImportResource)
-	//out := action.ArgOut.(*ArgOutImportResource)
+func (ctl *ServiceController) ImportResource(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInImportResource)
+	//out := ctx.ArgOut.(*ArgOutImportResource)
 	return nil
 }
-func (ctl *ServiceController) ExportResource(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInExportResource)
-	//out := action.ArgOut.(*ArgOutExportResource)
+func (ctl *ServiceController) ExportResource(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInExportResource)
+	//out := ctx.ArgOut.(*ArgOutExportResource)
 	return nil
 }
-func (ctl *ServiceController) StopTransferResource(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInStopTransferResource)
-	//out := action.ArgOut.(*ArgOutStopTransferResource)
+func (ctl *ServiceController) StopTransferResource(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInStopTransferResource)
+	//out := ctx.ArgOut.(*ArgOutStopTransferResource)
 	return nil
 }
-func (ctl *ServiceController) GetTransferProgress(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInGetTransferProgress)
-	//out := action.ArgOut.(*ArgOutGetTransferProgress)
+func (ctl *ServiceController) GetTransferProgress(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInGetTransferProgress)
+	//out := ctx.ArgOut.(*ArgOutGetTransferProgress)
 	return nil
 }
-func (ctl *ServiceController) DeleteResource(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInDeleteResource)
-	//out := action.ArgOut.(*ArgOutDeleteResource)
+func (ctl *ServiceController) DeleteResource(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInDeleteResource)
+	//out := ctx.ArgOut.(*ArgOutDeleteResource)
 	return nil
 }
-func (ctl *ServiceController) CreateReference(action *handler.Action) error {
-	//in := action.ArgIn.(*ArgInCreateReference)
-	//out := action.ArgOut.(*ArgOutCreateReference)
+func (ctl *ServiceController) CreateReference(ctx *handler.Context) error {
+	//in := ctx.ArgIn.(*ArgInCreateReference)
+	//out := ctx.ArgOut.(*ArgOutCreateReference)
 	return nil
 }

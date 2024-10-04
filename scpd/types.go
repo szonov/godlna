@@ -200,7 +200,7 @@ func (sv *StateVariable) LoadString(s string) error {
 	if sv.Events == "" {
 		sv.Events = "no"
 	}
-	if rng.Min == 0 || rng.Max != 0 || rng.Step != 0 {
+	if rng.Min != 0 || rng.Max != 0 || rng.Step != 0 {
 		sv.AllowedRange = rng
 	}
 	if len(parts) == 2 {

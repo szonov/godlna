@@ -60,8 +60,16 @@ type Handler struct {
 }
 
 func (h *Handler) Init() error {
-	// TODO: validation, scpd generation
-	h.xmlBody = []byte("TODO")
+	serviceSCPD, err := MakeSCPD(h)
+	if err != nil {
+		return err
+	}
+	var xmlBody []byte
+	xmlBody, err = xml.Marshal(serviceSCPD)
+	if err != nil {
+		return err
+	}
+	h.xmlBody = append([]byte(xml.Header), xmlBody...)
 	return nil
 }
 

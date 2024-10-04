@@ -17,11 +17,11 @@ type ArgOutGetSortCapabilities struct {
 type ArgInGetSystemUpdateID struct {
 }
 type ArgOutGetSystemUpdateID struct {
-	Id scpd.UI4 `scpd:"SystemUpdateID,ui4" events:"yes"`
+	Id scpd.UI4 `scpd:"SystemUpdateID,ui4,events"`
 }
 type ArgInBrowse struct {
 	ObjectID       string   `scpd:"A_ARG_TYPE_ObjectID,string"`
-	BrowseFlag     string   `scpd:"A_ARG_TYPE_BrowseFlag,string" allowed:"BrowseMetadata,BrowseDirectChildren"`
+	BrowseFlag     string   `scpd:"A_ARG_TYPE_BrowseFlag,string BrowseMetadata,BrowseDirectChildren"`
 	Filter         string   `scpd:"A_ARG_TYPE_Filter,string"`
 	StartingIndex  scpd.UI4 `scpd:"A_ARG_TYPE_Index,ui4"`
 	RequestedCount scpd.UI4 `scpd:"A_ARG_TYPE_Count,ui4"`
@@ -90,7 +90,7 @@ type ArgInGetTransferProgress struct {
 	TransferID scpd.UI4 `scpd:"A_ARG_TYPE_TransferID,ui4"`
 }
 type ArgOutGetTransferProgress struct {
-	TransferStatus string `scpd:"A_ARG_TYPE_TransferStatus,string" allowed:"COMPLETED,ERROR,IN_PROGRESS,STOPPED"`
+	TransferStatus string `scpd:"A_ARG_TYPE_TransferStatus,string COMPLETED,ERROR,IN_PROGRESS,STOPPED"`
 	TransferLength string `scpd:"A_ARG_TYPE_TransferLength,string"`
 	TransferTotal  string `scpd:"A_ARG_TYPE_TransferTotal,string"`
 }

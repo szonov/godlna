@@ -135,36 +135,16 @@ func (gen *ServiceGen) makeDir() (fullPath string, err error) {
 }
 
 type genArg struct {
-	argName     string
-	argType     string
-	argScpdType string
-	argVar      string
-	argEvents   bool
-	argRange    string
-	argAllowed  string
-	argDefault  string
+	argName string
+	argType string
+	argTag  string
 }
 
 func (a genArg) toString(nameLen int, typeLen int) string {
 	nam := a.argName + strings.Repeat(" ", nameLen-len(a.argName))
 	typ := a.argType + strings.Repeat(" ", typeLen-len(a.argType))
 
-	t := make([]string, 0)
-	if a.argEvents {
-		t = append(t, ` events:"yes"`)
-	}
-	if a.argDefault != "" {
-		t = append(t, fmt.Sprintf(` default:"%s"`, a.argDefault))
-	}
-	if a.argRange != "" {
-		t = append(t, fmt.Sprintf(` range:"%s"`, a.argRange))
-	}
-	if a.argAllowed != "" {
-		t = append(t, fmt.Sprintf(` allowed:"%s"`, a.argAllowed))
-	}
-	tag := fmt.Sprintf(`scpd:"%s,%s"%s`, a.argVar, a.argScpdType, strings.Join(t, ""))
-
-	return fmt.Sprintf("\t%s %s `%s`\n", nam, typ, tag)
+	return fmt.Sprintf("\t%s %s `scpd:\"%s\"`\n", nam, typ, a.argTag)
 }
 
 type genAction struct {
@@ -216,15 +196,8 @@ func (gen *ServiceGen) readActions() ([]genAction, error) {
 				return nil, fmt.Errorf("%s:%s: invalid related state variable '%s'", action.Name, arg.Name, arg.Variable)
 			}
 			a := genArg{
-				argName:     arg.Name,
-				argVar:      arg.Variable,
-				argType:     "string",
-				argScpdType: variable.DataType,
-				argDefault:  variable.Default,
-			}
-
-			if variable.Events == "yes" {
-				a.argEvents = true
+				argName: arg.Name,
+				argTag:  variable.String(),
 			}
 
 			var ok bool
@@ -232,15 +205,6 @@ func (gen *ServiceGen) readActions() ([]genAction, error) {
 				fmt.Printf("WARN: %s %s:%s unhandled variable type '%s'\n", arg.Name, arg.Direction, arg.Variable, variable.DataType)
 				a.argType = "string"
 			}
-
-			if variable.AllowedRange != nil {
-				ran := variable.AllowedRange
-				a.argRange = fmt.Sprintf("%d,%d,%d", ran.Min, ran.Max, ran.Step)
-			}
-			if variable.AllowedValues != nil && len(*variable.AllowedValues) > 0 {
-				a.argAllowed = strings.Join(*variable.AllowedValues, ",")
-			}
-
 			if arg.Direction == "in" {
 				dAction.inArgs = append(dAction.inArgs, a)
 			} else {
@@ -288,17 +252,16 @@ func (gen *ServiceGen) generateArguments() error {
 func (gen *ServiceGen) generateHandlerConfig() error {
 	actionsBody := ""
 	for _, action := range gen.actions {
-		tm := `			"%[1]s": func() *handler.Action {
+		tm := `
+			"%[1]s": func() *handler.Action {
 				return handler.NewAction(ctl.%[1]s, &ArgIn%[1]s{}, &ArgOut%[1]s{})
-			},
-`
+			},`
 		actionsBody += fmt.Sprintf(tm, action.name)
 	}
 	tmpl := `func (ctl *%[1]s) createHandler() *%[1]s {
 	ctl.Handler = &handler.Handler{
 		ServiceType: ctl.Service.ServiceType,
-		Actions: handler.ActionMap{
-%[2]s
+		Actions: handler.ActionMap{%[2]s
 		},
 	}
 	return ctl

@@ -80,7 +80,31 @@ func (ctl *ServiceController) GetSystemUpdateID(ctx *handler.Context) error {
 }
 func (ctl *ServiceController) Browse(ctx *handler.Context) error {
 	//in := ctx.ArgIn.(*ArgInBrowse)
-	//out := ctx.ArgOut.(*ArgOutBrowse)
+	out := ctx.ArgOut.(*ArgOutBrowse)
+	out.Result = `<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/"
+           xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"
+           xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">
+    <container id="100500" parentID="0" restricted="1" searchable="1" childCount="1">
+        <dc:title>Browse Folders
+        </dc:title>
+        <upnp:class>object.container.storageFolder</upnp:class>
+    </container>
+    <container id="1" parentID="0" restricted="1" searchable="1" childCount="7">
+        <dc:title>Music</dc:title>
+        <upnp:class>object.container.storageFolder</upnp:class>
+    </container>
+    <container id="3" parentID="0" restricted="1" searchable="1" childCount="5">
+        <dc:title>Pictures</dc:title>
+        <upnp:class>object.container.storageFolder</upnp:class>
+    </container>
+    <container id="2" parentID="0" restricted="1" searchable="1" childCount="3">
+        <dc:title>Video</dc:title>
+        <upnp:class>object.container.storageFolder</upnp:class>
+    </container>
+</DIDL-Lite>`
+	out.TotalMatches = 4
+	out.NumberReturned = 4
+	out.UpdateID = 1
 	return nil
 }
 func (ctl *ServiceController) Search(ctx *handler.Context) error {

@@ -18,7 +18,7 @@ func TestGenerateService(t *testing.T) {
 		ServiceSCPD:       serviceSCPD,
 		ServiceType:       "urn:schemas-upnp-org:service:ContentDirectory:1",
 		ServiceId:         "urn:upnp-org:serviceId:ContentDirectory",
-		Directory:         "cds1",
+		Directory:         ".",
 		ControllerName:    "ServiceController",
 		ControllerFile:    "controller.go",
 		ArgumentsFile:     "arguments.go",

@@ -1,17 +1,9 @@
-package handler
+package scpd
 
 import (
 	"net/url"
 	"strconv"
 )
-
-var DataTypeMap = map[string]string{
-	"ui1":    "handler.UI1",
-	"ui2":    "handler.UI2",
-	"ui4":    "handler.UI4",
-	"string": "string",
-	"uri":    "handler.URI",
-}
 
 // DONE [ui1] :: UI1
 // Unsigned 1 Byte int. Same format as int without leading sign.

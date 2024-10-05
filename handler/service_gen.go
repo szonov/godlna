@@ -3,12 +3,21 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/szonov/go-upnp-lib/scpd"
 )
+
+var DataTypeMap = map[string]string{
+	"ui1":    "uint8",
+	"ui2":    "uint16",
+	"ui4":    "uint32",
+	"string": "string",
+	"uri":    "scpd.URI",
+}
 
 // ServiceGen all params required
 type ServiceGen struct {
@@ -40,6 +49,7 @@ type ServiceGen struct {
 	pkg         string
 	serviceName string
 	actions     []genAction
+	argsScpd    bool
 }
 
 // GenerateService generate *.go files
@@ -203,8 +213,17 @@ func (gen *ServiceGen) readActions() ([]genAction, error) {
 
 			var ok bool
 			if a.argType, ok = DataTypeMap[variable.DataType]; !ok {
-				fmt.Printf("WARN: %s %s:%s unhandled variable type '%s'\n", arg.Name, arg.Direction, arg.Variable, variable.DataType)
+				slog.Warn("scpd::unhandled variable type",
+					slog.String("var", arg.Variable),
+					slog.String("arg", arg.Name),
+					slog.String("dir", arg.Direction),
+					slog.String("type", variable.DataType),
+				)
+				//fmt.Printf("WARN: %s %s:%s unhandled variable type '%s'\n", arg.Name, arg.Direction, arg.Variable, variable.DataType)
 				a.argType = "string"
+			}
+			if strings.HasPrefix(a.argType, "scpd.") {
+				gen.argsScpd = true
 			}
 			if arg.Direction == "in" {
 				dAction.inArgs = append(dAction.inArgs, a)
@@ -241,11 +260,13 @@ func (gen *ServiceGen) generateArguments() error {
 	for _, action := range gen.actions {
 		code += action.toString("ArgIn") + action.toString("ArgOut")
 	}
+	imports := make([]string, 0)
+	if gen.argsScpd {
+		imports = append(imports, "github.com/szonov/go-upnp-lib/scpd")
+	}
 	return gen.addCodeToFile(
 		gen.ArgumentsFile,
-		[]string{
-			"github.com/szonov/go-upnp-lib/handler",
-		},
+		imports,
 		code,
 	)
 }

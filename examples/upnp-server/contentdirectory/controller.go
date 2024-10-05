@@ -4,7 +4,6 @@ import (
 	"github.com/szonov/go-upnp-lib"
 	"github.com/szonov/go-upnp-lib/device"
 	"github.com/szonov/go-upnp-lib/handler"
-	"net/http"
 )
 
 const (
@@ -27,40 +26,24 @@ func NewServiceController() *ServiceController {
 		EventSubURL: "/evt/ContentDirectory",
 	}
 	ctl.Handler = &handler.Handler{
-		Service: ctl.Service.ServiceType,
-		Actions: ctl.createActions(),
+		ServiceType: ctl.Service.ServiceType,
+		Actions:     ctl.createActions(),
 	}
 	return ctl
 }
 
 // OnServerStart implements upnp.Controller interface
-func (ctl *ServiceController) OnServerStart(server *upnp.Server) error {
+func (ctl *ServiceController) OnServerStart(s *upnp.Server) error {
 	if err := ctl.Handler.Init(); err != nil {
 		return err
 	}
-	server.Device.ServiceList = append(server.Device.ServiceList, ctl.Service)
+	s.AppendService(ctl.Service)
+
+	s.Handle(ctl.Service.SCPDURL, ctl.Handler.HandleSCPDURL)
+	s.Handle(ctl.Service.ControlURL, ctl.Handler.HandleControlURL)
+	s.Handle(ctl.Service.EventSubURL, ctl.Handler.HandleEventSubURL)
+
 	return nil
-}
-
-// Handle implements upnp.Controller interface
-func (ctl *ServiceController) Handle(w http.ResponseWriter, r *http.Request) bool {
-
-	if r.URL.Path == ctl.Service.SCPDURL {
-		ctl.Handler.HandleSCPDURL(w, r)
-		return true
-	}
-
-	if r.URL.Path == ctl.Service.ControlURL {
-		ctl.Handler.HandleControlURL(w, r)
-		return true
-	}
-
-	if r.URL.Path == ctl.Service.EventSubURL {
-		ctl.Handler.HandleEventSubURL(w, r)
-		return true
-	}
-
-	return false
 }
 
 func (ctl *ServiceController) GetSearchCapabilities(ctx *handler.Context) error {
@@ -80,31 +63,7 @@ func (ctl *ServiceController) GetSystemUpdateID(ctx *handler.Context) error {
 }
 func (ctl *ServiceController) Browse(ctx *handler.Context) error {
 	//in := ctx.ArgIn.(*ArgInBrowse)
-	out := ctx.ArgOut.(*ArgOutBrowse)
-	out.Result = `<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/"
-           xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"
-           xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">
-    <container id="100500" parentID="0" restricted="1" searchable="1" childCount="1">
-        <dc:title>Browse Folders
-        </dc:title>
-        <upnp:class>object.container.storageFolder</upnp:class>
-    </container>
-    <container id="1" parentID="0" restricted="1" searchable="1" childCount="7">
-        <dc:title>Music</dc:title>
-        <upnp:class>object.container.storageFolder</upnp:class>
-    </container>
-    <container id="3" parentID="0" restricted="1" searchable="1" childCount="5">
-        <dc:title>Pictures</dc:title>
-        <upnp:class>object.container.storageFolder</upnp:class>
-    </container>
-    <container id="2" parentID="0" restricted="1" searchable="1" childCount="3">
-        <dc:title>Video</dc:title>
-        <upnp:class>object.container.storageFolder</upnp:class>
-    </container>
-</DIDL-Lite>`
-	out.TotalMatches = 4
-	out.NumberReturned = 4
-	out.UpdateID = 1
+	//out := ctx.ArgOut.(*ArgOutBrowse)
 	return nil
 }
 func (ctl *ServiceController) Search(ctx *handler.Context) error {

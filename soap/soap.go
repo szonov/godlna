@@ -5,10 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"strconv"
 	"strings"
 )
 
 const (
+	ResponseContentTypeXML = `text/xml; charset="utf-8"`
+
 	EncodingStyle = "http://schemas.xmlsoap.org/soap/encoding/"
 	EnvelopeNS    = "http://schemas.xmlsoap.org/soap/envelope/"
 
@@ -25,6 +29,9 @@ type UPnPError struct {
 
 func (e *UPnPError) Error() string {
 	return fmt.Sprintf("%d %s", e.Code, e.Desc)
+}
+func (e *UPnPError) SendResponse(w http.ResponseWriter, statusCode ...int) {
+	SendErrorResponse(e, w, statusCode...)
 }
 
 type FaultDetail struct {
@@ -49,7 +56,7 @@ type Envelope struct {
 	Body    EnvelopeBody `xml:"Body"`
 }
 
-func (v *Envelope) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+func (env *Envelope) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 	startEnvelope := xml.StartElement{
 		Name: xml.Name{Local: "s:" + start.Name.Local},
@@ -65,11 +72,40 @@ func (v *Envelope) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 	startBody := xml.StartElement{Name: xml.Name{Local: "s:Body"}}
 
-	if err := e.EncodeElement(v.Body, startBody); err != nil {
+	if err := e.EncodeElement(env.Body, startBody); err != nil {
 		return err
 	}
 
 	return e.EncodeToken(xml.EndElement{Name: startEnvelope.Name})
+}
+
+func (env *Envelope) SendResponse(w http.ResponseWriter, statusCode ...int) {
+	body, err := xml.Marshal(env)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	body = append([]byte(xml.Header), body...)
+	SendXmlResponse(body, w, statusCode...)
+}
+
+type Action struct {
+	Name        string
+	ServiceType string
+	EnvBody     []byte
+	Response    any
+}
+
+func (a *Action) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	start.Name.Local = "u:" + a.Name + "Response"
+	start.Attr = []xml.Attr{
+		{Name: xml.Name{Local: "xmlns:u"}, Value: a.ServiceType},
+	}
+	return e.EncodeElement(a.Response, start)
+}
+
+func (a *Action) SendResponse(w http.ResponseWriter, statusCode ...int) {
+	NewEnvelope(a).SendResponse(w, statusCode...)
 }
 
 func GetEnvelopeBody(r io.Reader) ([]byte, error) {
@@ -133,29 +169,31 @@ func NewErrEnvelope(err error, faultString ...string) *Envelope {
 	})
 }
 
-func UnmarshalEnvelopeBody2[T any](r io.Reader, args T) (T, error) {
-	var body []byte
-	var err error
-	if body, err = GetEnvelopeBody(r); err != nil {
-		return args, err
-	}
-	err = xml.Unmarshal(body, args)
-	return args, err
-}
-
-type Action struct {
-	Name    string
-	Service string
-}
-
 func DetectAction(soapActionHeader string) *Action {
 	header := strings.Trim(soapActionHeader, " \"")
 	parts := strings.Split(header, "#")
 	if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
 		return &Action{
-			Service: parts[0],
-			Name:    parts[1],
+			ServiceType: parts[0],
+			Name:        parts[1],
 		}
 	}
 	return nil
+}
+
+func SendXmlResponse(xmlBody []byte, w http.ResponseWriter, statusCode ...int) {
+	w.Header().Set("Content-Type", ResponseContentTypeXML)
+	w.Header().Set("Content-Length", strconv.Itoa(len(xmlBody)))
+	if len(statusCode) > 0 {
+		w.WriteHeader(statusCode[0])
+	}
+	_, _ = w.Write(xmlBody)
+}
+
+func SendErrorResponse(err error, w http.ResponseWriter, statusCode ...int) {
+	env := NewErrEnvelope(NewFailed(err))
+	if len(statusCode) == 0 {
+		statusCode = append(statusCode, http.StatusInternalServerError)
+	}
+	env.SendResponse(w, statusCode...)
 }

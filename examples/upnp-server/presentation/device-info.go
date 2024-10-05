@@ -14,15 +14,19 @@ func NewController() *Controller {
 }
 
 func (c *Controller) OnServerStart(s *upnp.Server) error {
-	c.s = s
-	c.s.Device.PresentationURL = "http://" + s.ListenAddress + "/"
+	s.DeviceDescription.Device.PresentationURL = "http://" + s.ListenAddress + "/"
+	s.Handle("/", c.handleIndexPage)
 	return nil
 }
 
-func (c *Controller) Handle(w http.ResponseWriter, r *http.Request) bool {
+func (c *Controller) handleIndexPage(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
-		_, _ = w.Write([]byte("Index Page :: presentation URL"))
-		return true
+		if r.Method == "GET" || r.Method == "HEAD" {
+			_, _ = w.Write([]byte("Index Page :: presentation URL"))
+		} else {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	} else {
+		w.WriteHeader(http.StatusNotFound)
 	}
-	return false
 }

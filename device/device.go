@@ -89,7 +89,7 @@ type VendorXML struct {
 func (v VendorXML) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	start.Name = v.XMLName
 	start.Attr = append(start.Attr, v.XMLAttrs...)
-	// namespace added to DeviceDesc root element, cut it off from Vendor's root element
+	// namespace added to Description root element, cut it off from Vendor's root element
 	if n := strings.Index(v.XMLName.Local, ":"); n > 0 {
 		start.Name.Space = ""
 	}
@@ -154,21 +154,24 @@ type Device struct {
 	VendorXML []VendorXML
 }
 
-type DeviceDesc struct {
+type Description struct {
 	// Required
 	SpecVersion SpecVersion `xml:"specVersion"`
 
 	// Device Required
-	Device Device `xml:"device"`
+	Device *Device `xml:"device"`
 
 	// URLBase Optional. Defines the base URL. If URLBase is empty or not given,
 	// the base URL is the URL from which the device description was retrieved
 	// (which is the preferred implementation; use of URLBase is no longer recommended). Single URL.
 	URLBase string `xml:"URLBase,omitempty"`
+
+	// Location Url, on which description will be available, used as 'Location' header for SSDP
+	Location string `xml:"-"`
 }
 
-// MarshalXML generate XML output for DeviceDesc
-func (r DeviceDesc) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+// MarshalXML generate XML output for Description
+func (r Description) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 	var err error
 

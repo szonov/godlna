@@ -10,7 +10,7 @@ import (
 )
 
 // reference https://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.0-20080424.pdf
-// page 30 and below: "2.3 Description: Service description"
+// page 30 and below: "2.3 Description: ServiceType description"
 
 // SpecVersion The same as upnp.SpecVersion
 type SpecVersion struct {

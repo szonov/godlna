@@ -3,26 +3,12 @@ package logger
 import (
 	"bytes"
 	"fmt"
-	"github.com/szonov/go-upnp-lib"
 	"io"
 	"log/slog"
 	"net/http"
 )
 
-type DebugController struct {
-	s *upnp.Server
-}
-
-func NewDebugController() *DebugController {
-	return &DebugController{}
-}
-
-func (c *DebugController) OnServerStart(s *upnp.Server) error {
-	return nil
-}
-
-func (c *DebugController) Handle(w http.ResponseWriter, r *http.Request) bool {
-
+func DebugRequest(r *http.Request) {
 	body := r.Method + " " + r.URL.String() + " " + r.Proto + "\r\n"
 	for k, v := range r.Header {
 		for _, vv := range v {
@@ -36,6 +22,4 @@ func (c *DebugController) Handle(w http.ResponseWriter, r *http.Request) bool {
 		r.Body = rdr1
 	}
 	slog.Debug("\n" + body)
-
-	return false
 }

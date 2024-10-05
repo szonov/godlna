@@ -1,15 +1,16 @@
 package main
 
 import (
+	"github.com/szonov/go-upnp-lib/device"
+	"github.com/szonov/go-upnp-lib/examples/upnp-server/presentation"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 
+	"github.com/szonov/go-upnp-lib"
 	"github.com/szonov/go-upnp-lib/examples/upnp-server/contentdirectory"
 	"github.com/szonov/go-upnp-lib/examples/upnp-server/logger"
-	"github.com/szonov/go-upnp-lib/examples/upnp-server/presentation"
-
-	"github.com/szonov/go-upnp-lib"
 	"github.com/szonov/go-upnp-lib/network"
 )
 
@@ -23,13 +24,21 @@ func main() {
 		ListenAddress: v4face.IP + ":55975",
 		SsdpInterface: v4face.Interface,
 		Controllers: []upnp.Controller{
-			logger.NewDebugController(),
-			presentation.NewController(),
 			contentdirectory.NewServiceController(),
+			presentation.NewController(),
 		},
-		OnDeviceCreate: func(s *upnp.Server) error {
-			slog.Debug("call:OnDeviceCreate (time to setup Device)")
+		OnDeviceCreate: func(d *device.Description) error {
+			slog.Debug("call:OnDeviceCreate (time to setup Device)", slog.String("name", d.Device.FriendlyName))
 			return nil
+		},
+		BeforeHook: func(w http.ResponseWriter, r *http.Request) bool {
+			slog.Debug("Request",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.String("remote", r.RemoteAddr),
+			)
+			logger.DebugRequest(r)
+			return true
 		},
 	}
 

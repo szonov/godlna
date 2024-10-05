@@ -90,12 +90,12 @@ func (gen *ServiceGen) validateInParams() error {
 	}
 
 	if gen.ServiceType == "" {
-		return errors.New("missing Service")
+		return errors.New("missing ServiceType")
 	}
 
 	parts := strings.Split(gen.ServiceType, ":")
 	if len(parts) != 5 || parts[0] != "urn" || parts[2] != "service" {
-		return errors.New("invalid Service")
+		return errors.New("invalid ServiceType")
 	}
 	gen.serviceName = parts[3]
 
@@ -331,40 +331,24 @@ func New%[1]s() *%[1]s {
 		EventSubURL: "/evt/%[4]s",
 	}
 	ctl.Handler = &handler.Handler{
-		Service: ctl.Service.ServiceType,
+		ServiceType: ctl.Service.ServiceType,
 		Actions: ctl.createActions(),
 	}
 	return ctl
 }
 
 // OnServerStart implements upnp.Controller interface
-func (ctl *%[1]s) OnServerStart(server *upnp.Server) error {
+func (ctl *%[1]s) OnServerStart(s *upnp.Server) error {
 	if err := ctl.Handler.Init(); err != nil {
 		return err
 	}
-	server.Device.ServiceList = append(server.Device.ServiceList, ctl.Service)
+	s.AppendService(ctl.Service)
+
+	s.Handle(ctl.Service.SCPDURL, ctl.Handler.HandleSCPDURL)
+	s.Handle(ctl.Service.ControlURL, ctl.Handler.HandleControlURL)
+	s.Handle(ctl.Service.EventSubURL, ctl.Handler.HandleEventSubURL)
+
 	return nil
-}
-
-// Handle implements upnp.Controller interface
-func (ctl *%[1]s) Handle(w http.ResponseWriter, r *http.Request) bool {
-
-	if r.URL.Path == ctl.Service.SCPDURL {
-		ctl.Handler.HandleSCPDURL(w, r)
-		return true
-	}
-
-	if r.URL.Path == ctl.Service.ControlURL {
-		ctl.Handler.HandleControlURL(w, r)
-		return true
-	}
-
-	if r.URL.Path == ctl.Service.EventSubURL {
-		ctl.Handler.HandleEventSubURL(w, r)
-		return true
-	}
-
-	return false
 }
 
 `
@@ -382,7 +366,7 @@ func (ctl *%[1]s) Handle(w http.ResponseWriter, r *http.Request) bool {
 			"github.com/szonov/go-upnp-lib",
 			"github.com/szonov/go-upnp-lib/device",
 			"github.com/szonov/go-upnp-lib/handler",
-			"net/http",
+			//"net/http",
 		},
 		code,
 	)

@@ -58,6 +58,10 @@ func (h *MyLogHandler) Handle(ctx context.Context, r slog.Record) error {
 		message = rgb(message, 255, 92, 87)
 	}
 
+	if strings.HasPrefix(message, "\n") {
+		message = rgb(message, 243, 249, 157)
+	}
+
 	h.l.Println(
 		rgb(r.Time.Format("2006-01-02 15:04:05"), 119, 119, 119),
 		level,

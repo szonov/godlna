@@ -23,6 +23,7 @@ func main() {
 		ListenAddress: v4face.IP + ":55975",
 		SsdpInterface: v4face.Interface,
 		Controllers: []upnp.Controller{
+			logger.NewDebugController(),
 			presentation.NewController(),
 			contentdirectory.NewServiceController(),
 		},

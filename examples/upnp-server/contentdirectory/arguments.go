@@ -1,5 +1,9 @@
 package contentdirectory
 
+import (
+	"github.com/szonov/go-upnp-lib/scpd"
+)
+
 type ArgInGetSearchCapabilities struct {
 }
 type ArgOutGetSearchCapabilities struct {
@@ -64,15 +68,15 @@ type ArgInUpdateObject struct {
 type ArgOutUpdateObject struct {
 }
 type ArgInImportResource struct {
-	SourceURI      string `scpd:"A_ARG_TYPE_URI,uri"`
-	DestinationURI string `scpd:"A_ARG_TYPE_URI,uri"`
+	SourceURI      scpd.URI `scpd:"A_ARG_TYPE_URI,uri"`
+	DestinationURI scpd.URI `scpd:"A_ARG_TYPE_URI,uri"`
 }
 type ArgOutImportResource struct {
 	TransferID uint32 `scpd:"A_ARG_TYPE_TransferID,ui4"`
 }
 type ArgInExportResource struct {
-	SourceURI      string `scpd:"A_ARG_TYPE_URI,uri"`
-	DestinationURI string `scpd:"A_ARG_TYPE_URI,uri"`
+	SourceURI      scpd.URI `scpd:"A_ARG_TYPE_URI,uri"`
+	DestinationURI scpd.URI `scpd:"A_ARG_TYPE_URI,uri"`
 }
 type ArgOutExportResource struct {
 	TransferID uint32 `scpd:"A_ARG_TYPE_TransferID,ui4"`
@@ -91,7 +95,7 @@ type ArgOutGetTransferProgress struct {
 	TransferTotal  string `scpd:"A_ARG_TYPE_TransferTotal,string"`
 }
 type ArgInDeleteResource struct {
-	ResourceURI string `scpd:"A_ARG_TYPE_URI,uri"`
+	ResourceURI scpd.URI `scpd:"A_ARG_TYPE_URI,uri"`
 }
 type ArgOutDeleteResource struct {
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"runtime"
@@ -15,8 +16,7 @@ import (
 )
 
 const (
-	Identifier             string = "UPnP"
-	ResponseContentTypeXML        = `text/xml; charset="utf-8"`
+	ResponseContentTypeXML = `text/xml; charset="utf-8"`
 )
 
 type Controller interface {
@@ -65,14 +65,6 @@ type Server struct {
 	// SsdpMulticastTTL MulticastTTL parameter for build-in ssdp server, without SsdpInterface it is useful
 	SsdpMulticastTTL int
 
-	// How to handle errors, useful for logs or something else.
-	// Optional: No defaults
-	ErrorHandler ErrorHandlerFunc
-
-	// How to handle server notifications, useful for debug.
-	// Optional: No defaults
-	InfoHandler InfoHandlerFunc
-
 	srv           *http.Server
 	deviceDescXML []byte
 	ssdpServer    *ssdp.Server
@@ -92,29 +84,33 @@ func (s *Server) ListenAndServe() error {
 	var err error
 
 	if err = s.validateAndSetDefaults(); err != nil {
-		return s.NotifyError(err)
+		slog.Error(err.Error())
+		return err
 	}
 
 	// create device, and modify it using callback OnDeviceCreate
 	if err = s.makeDevice(); err != nil {
-		return s.NotifyError(err)
+		slog.Error(err.Error())
+		return err
 	}
 
 	// initialize all controllers
 	for i := range s.Controllers {
 		if err = s.Controllers[i].OnServerStart(s); err != nil {
-			return s.NotifyError(err)
+			slog.Error(err.Error())
+			return err
 		}
 	}
 
 	// prepare device desc xml
 	if err = s.makeDeviceDescXML(); err != nil {
+		slog.Error(err.Error())
 		return err
 	}
 
 	s.startSsdpServer()
 
-	s.NotifyInfo(fmt.Sprintf("starting UPnP server on address %s", s.ListenAddress))
+	slog.Info("starting UPnP server", slog.String("address", s.ListenAddress))
 
 	s.srv = &http.Server{
 		Addr:    s.ListenAddress,
@@ -122,7 +118,8 @@ func (s *Server) ListenAndServe() error {
 	}
 
 	if err = s.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		return s.NotifyError(err)
+		slog.Error(err.Error())
+		return err
 	}
 
 	return nil
@@ -132,15 +129,23 @@ func (s *Server) Shutdown() {
 	if s.ssdpServer != nil {
 		s.ssdpServer.Shutdown()
 	}
-	s.NotifyInfo(fmt.Sprintf("stopping UPnP server on address %s", s.ListenAddress))
+
+	slog.Info("stopping UPnP server", slog.String("address", s.ListenAddress))
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = s.NotifyError(s.srv.Shutdown(ctx))
+	if err := s.srv.Shutdown(ctx); err != nil {
+		slog.Error(err.Error())
+	}
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	s.NotifyInfo(fmt.Sprintf("%s %s (%s)", r.Method, r.URL.Path, r.RemoteAddr))
+	slog.Debug("Request",
+		slog.String("method", r.Method),
+		slog.String("path", r.URL.Path),
+		slog.String("remote", r.RemoteAddr),
+	)
 
 	w.Header().Set("Server", s.ServerHeader)
 
@@ -217,8 +222,6 @@ func (s *Server) startSsdpServer() {
 		MaxAge:         s.SsdpMaxAge,
 		NotifyInterval: s.SsdpNotifyInterval,
 		MulticastTTL:   s.SsdpMulticastTTL,
-		ErrorHandler:   s.ErrorHandler,
-		InfoHandler:    s.InfoHandler,
 	}
 
 	s.ssdpServer.Start()
@@ -234,17 +237,4 @@ func (s *Server) makeDeviceDescXML() (err error) {
 		s.deviceDescXML = append([]byte(xml.Header), b...)
 	}
 	return
-}
-
-func (s *Server) NotifyError(err error) error {
-	if err != nil && s.ErrorHandler != nil {
-		s.ErrorHandler(err, Identifier)
-	}
-	return err
-}
-
-func (s *Server) NotifyInfo(msg string) {
-	if s.InfoHandler != nil {
-		s.InfoHandler(msg, Identifier)
-	}
 }

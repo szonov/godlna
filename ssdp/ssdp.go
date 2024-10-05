@@ -3,6 +3,7 @@ package ssdp
 import (
 	"fmt"
 	"golang.org/x/net/ipv4"
+	"log/slog"
 	"math/rand"
 	"net"
 	"runtime"
@@ -13,7 +14,6 @@ import (
 
 const (
 	MulticastAddrPort string = "239.255.255.250:1900"
-	Identifier        string = "SSDP"
 )
 
 // Server Describes structure of SSDP Server
@@ -79,14 +79,6 @@ type Server struct {
 	// Required: No defaults
 	Interface *net.Interface
 
-	// How to handle errors, useful for logs or something else.
-	// Optional: No defaults
-	ErrorHandler func(err error, identity string)
-
-	// How to handle server notifications, useful for debug.
-	// Optional: No defaults
-	InfoHandler func(msg string, identity string)
-
 	// all handled notification type(nt) / search target(st)
 	// len = 3 of device + len(ServiceList)
 	targets []string
@@ -109,22 +101,29 @@ func (s *Server) Start() *Server {
 func (s *Server) ListenAndServe() error {
 	var err error
 	if err = s.validateAndSetDefaults(); err != nil {
-		return s.notifyError(err)
+		slog.Error(err.Error())
+		return err
 	}
 
-	s.notifyInfo(fmt.Sprintf("starting ssdp server on address %s (%s)", MulticastAddrPort, s.Interface.Name))
+	slog.Debug("starting ssdp server",
+		slog.String("address", MulticastAddrPort),
+		slog.String("if", s.Interface.Name),
+	)
 
 	if s.udpAddr, err = net.ResolveUDPAddr("udp4", MulticastAddrPort); err != nil {
-		return s.notifyError(err)
+		slog.Error(err.Error())
+		return err
 	}
 
 	s.udpConn, err = net.ListenMulticastUDP("udp", s.Interface, s.udpAddr)
 	if err != nil {
-		return s.notifyError(err)
+		slog.Error(err.Error())
+		return err
 	}
 
 	if err = ipv4.NewPacketConn(s.udpConn).SetMulticastTTL(s.MulticastTTL); err != nil {
-		return s.notifyError(err)
+		slog.Error(err.Error())
+		return err
 	}
 
 	s.quit = make(chan struct{})
@@ -136,11 +135,14 @@ func (s *Server) ListenAndServe() error {
 }
 
 func (s *Server) Shutdown() {
-	s.notifyInfo(fmt.Sprintf("stopping ssdp server on address %s (%s)", MulticastAddrPort, s.Interface.Name))
+	slog.Debug("stopping ssdp server",
+		slog.String("address", MulticastAddrPort),
+		slog.String("if", s.Interface.Name),
+	)
 	close(s.quit)
 	s.sendByeBye()
 	if err := s.udpConn.Close(); err != nil {
-		_ = s.notifyError(err)
+		slog.Error(err.Error())
 	}
 }
 
@@ -158,7 +160,8 @@ func (s *Server) listen() {
 			return
 		default:
 		}
-		if s.notifyError(err) != nil {
+		if err != nil {
+			slog.Error(err.Error())
 			break
 		}
 		go s.parseUdpMessage(b[:n], addr)
@@ -232,7 +235,8 @@ func (s *Server) parseUdpMessage(buf []byte, sender *net.UDPAddr) {
 				// random duration between 0 and this many seconds to balance load
 				// for the control point when it processes responses.
 				mxUint, err := strconv.ParseUint(value, 0, 0)
-				if s.notifyError(err) != nil {
+				if err != nil {
+					slog.Warn("invalid MX", slog.String("err", err.Error()), slog.String("line", line))
 					return
 				}
 				mx = int64(mxUint)
@@ -267,7 +271,10 @@ func (s *Server) parseUdpMessage(buf []byte, sender *net.UDPAddr) {
 		return
 	}
 
-	s.notifyInfo(fmt.Sprintf("ssdp:discover [%s] from %s", st, sender.String()))
+	slog.Debug("ssdp:discover",
+		slog.String("st", st),
+		slog.String("sender", sender.String()),
+	)
 
 	for _, target := range targets {
 		msg := s.makeMSearchResponse(target)
@@ -289,9 +296,9 @@ func (s *Server) send(msg string, to *net.UDPAddr, delay ...time.Duration) {
 	}
 	buf := []byte(msg)
 	if n, err := s.udpConn.WriteToUDP(buf, to); err != nil {
-		s.notifyInfo(fmt.Sprintf("error writing to udp : %s", err.Error()))
+		slog.Debug("error writing to udp", slog.String("error", err.Error()))
 	} else if n != len(buf) {
-		s.notifyInfo(fmt.Sprintf("short write to udp : %d/%d", n, len(buf)))
+		slog.Debug("short write to udp", slog.Int("wrote", n), slog.Int("size", len(buf)))
 	}
 }
 
@@ -394,17 +401,4 @@ func (s *Server) validateAndSetDefaults() error {
 	s.targets = append([]string{s.DeviceUDN, "upnp:rootdevice", s.DeviceType}, s.ServiceList...)
 
 	return nil
-}
-
-func (s *Server) notifyError(err error) error {
-	if err != nil && s.ErrorHandler != nil {
-		s.ErrorHandler(err, Identifier)
-	}
-	return err
-}
-
-func (s *Server) notifyInfo(msg string) {
-	if s.InfoHandler != nil {
-		s.InfoHandler(msg, Identifier)
-	}
 }

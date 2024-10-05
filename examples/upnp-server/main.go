@@ -1,11 +1,12 @@
 package main
 
 import (
-	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 
 	"github.com/szonov/go-upnp-lib/examples/upnp-server/contentdirectory"
+	"github.com/szonov/go-upnp-lib/examples/upnp-server/logger"
 	"github.com/szonov/go-upnp-lib/examples/upnp-server/presentation"
 
 	"github.com/szonov/go-upnp-lib"
@@ -14,27 +15,19 @@ import (
 
 func main() {
 
-	errorHandler := func(err error, caller string) {
-		fmt.Printf("[ERROR] %s: %s\n", caller, err)
-	}
-
-	infoHandler := func(msg string, caller string) {
-		fmt.Printf("[INFO] %s: %s\n", caller, msg)
-	}
+	logger.InitLogger()
 
 	v4face := network.DefaultV4Interface()
 
 	upnpServer := &upnp.Server{
 		ListenAddress: v4face.IP + ":55975",
 		SsdpInterface: v4face.Interface,
-		ErrorHandler:  errorHandler,
-		InfoHandler:   infoHandler,
 		Controllers: []upnp.Controller{
 			presentation.NewController(),
 			contentdirectory.NewServiceController(),
 		},
 		OnDeviceCreate: func(s *upnp.Server) error {
-			infoHandler("call:OnDeviceCreate (time to setup Device)", "app")
+			slog.Debug("call:OnDeviceCreate (time to setup Device)")
 			return nil
 		},
 	}
@@ -44,13 +37,13 @@ func main() {
 	go func() {
 		<-c
 		// terminate ssdp server
-		infoHandler("gracefully shutting down...", "app")
+		slog.Debug("gracefully shutting down...")
 		upnpServer.Shutdown()
 	}()
 
-	infoHandler("server starting", "app")
+	slog.Info("server starting...")
 
 	_ = upnpServer.ListenAndServe()
 
-	infoHandler("server stopped", "app")
+	slog.Info("server stopped")
 }

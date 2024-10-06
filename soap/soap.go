@@ -92,21 +92,21 @@ func (env *Envelope) SendResponse(w http.ResponseWriter, statusCode ...int) {
 type Action struct {
 	Name        string
 	ServiceType string
-	EnvBody     []byte
-	Response    any
+	//EnvBody     []byte
+	//Response any
 }
 
-func (a *Action) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-	start.Name.Local = "u:" + a.Name + "Response"
-	start.Attr = []xml.Attr{
-		{Name: xml.Name{Local: "xmlns:u"}, Value: a.ServiceType},
-	}
-	return e.EncodeElement(a.Response, start)
-}
-
-func (a *Action) SendResponse(w http.ResponseWriter, statusCode ...int) {
-	NewEnvelope(a).SendResponse(w, statusCode...)
-}
+//func (a *Action) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+//	start.Name.Local = "u:" + a.Name + "Response"
+//	start.Attr = []xml.Attr{
+//		{Name: xml.Name{Local: "xmlns:u"}, Value: a.ServiceType},
+//	}
+//	return e.EncodeElement(a.Response, start)
+//}
+//
+//func (a *Action) SendResponse(w http.ResponseWriter, statusCode ...int) {
+//	NewEnvelope(a).SendResponse(w, statusCode...)
+//}
 
 func GetEnvelopeBody(r io.Reader) ([]byte, error) {
 	var env Envelope
@@ -149,6 +149,10 @@ func NewUPnPError(code uint, err error) *UPnPError {
 }
 
 func NewEnvelope(body any) *Envelope {
+	return &Envelope{Body: EnvelopeBody{Response: body}}
+}
+
+func NewResponseEnvelope(body any) *Envelope {
 	return &Envelope{Body: EnvelopeBody{Response: body}}
 }
 

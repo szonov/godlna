@@ -2,37 +2,48 @@ package upnp
 
 import (
 	"context"
-	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/szonov/go-upnp-lib/soap"
 	"log/slog"
 	"net"
 	"net/http"
 	"runtime"
 	"time"
 
-	"github.com/szonov/go-upnp-lib/device"
 	"github.com/szonov/go-upnp-lib/ssdp"
 )
 
+//type Controller interface {
+//	// OnServerStart initialize controller variables, which depends on server
+//	// Executed After Device created, but before ListenAndServe
+//	// Good place to add services to Device and setup routes
+//	OnServerStart(s *Server) error
+//}
+
+type Route struct {
+	Pattern    string
+	HandleFunc http.HandlerFunc
+}
+
 type Controller interface {
-	// OnServerStart initialize controller variables, which depends on server
+	// RegisterRoutes initialize controller variables, which depends on device
+	// and register handled routes
 	// Executed After Device created, but before ListenAndServe
 	// Good place to add services to Device and setup routes
-	OnServerStart(s *Server) error
+	RegisterRoutes(deviceDesc *DeviceDescription) ([]Route, error)
 }
 
 type Server struct {
 	// Format ip:port
 	ListenAddress string
 
-	// Direct creation is not allowed, use OnDeviceCreate callback
-	DeviceDescription *device.Description
+	//Direct creation is not allowed, use OnDeviceCreate callback
 
-	// OnDeviceCreate runs after device created and assigned to server
-	// Good place to add own fields to Device
-	OnDeviceCreate func(*device.Description) error
+	DeviceDescription *DeviceDescription
+
+	//// OnDeviceCreate runs after device created and assigned to server
+	//// Good place to add own fields to Device
+	//OnDeviceCreate func(*device.Description) error
 
 	Controllers []Controller
 
@@ -55,12 +66,11 @@ type Server struct {
 
 	BeforeHook func(w http.ResponseWriter, r *http.Request) bool // true = continue execution, false = stop
 	AfterHook  func(w http.ResponseWriter, r *http.Request)
+	Middleware func(http.Handler) http.Handler
 
 	// private
-	srv           *http.Server
-	router        *http.ServeMux
-	deviceDescXML []byte
-	ssdpServer    *ssdp.Server
+	srv        *http.Server
+	ssdpServer *ssdp.Server
 }
 
 func (s *Server) Start() *Server {
@@ -76,35 +86,43 @@ func (s *Server) ListenAndServe() error {
 
 	var err error
 
-	if err = s.validateAndSetDefaults(); err != nil {
-		slog.Error(err.Error())
-		return err
+	if s.ListenAddress == "" {
+		return fmt.Errorf("no ListenAddress specified")
 	}
 
-	// create device, and modify it using callback OnDeviceCreate
-	if err = s.makeDeviceDescription(); err != nil {
-		slog.Error(err.Error())
-		return err
+	if s.ServerHeader == "" {
+		s.ServerHeader = fmt.Sprintf("%s/%s %s %s", runtime.GOOS, runtime.Version(), "UPnP/1.0", "GoUPnP/1.0")
 	}
 
-	s.router = http.NewServeMux()
-	s.srv = &http.Server{
-		Addr:    s.ListenAddress,
-		Handler: s.router,
-	}
+	// add controller with device description to the last position,
+	// make sure all controllers made manipulations with device and it has actual status
+	s.Controllers = append(s.Controllers, new(DeviceController))
 
-	if err = s.setupRoutes(); err != nil {
-		slog.Error(err.Error())
-		return err
-	}
-
-	// prepare device desc xml
-	if err = s.makeDeviceDescXML(); err != nil {
-		slog.Error(err.Error())
-		return err
+	mux := http.NewServeMux()
+	for i := range s.Controllers {
+		var routes []Route
+		if routes, err = s.Controllers[i].RegisterRoutes(s.DeviceDescription); err != nil {
+			slog.Error(err.Error())
+			return err
+		}
+		for _, route := range routes {
+			handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Server", s.ServerHeader)
+				route.HandleFunc.ServeHTTP(w, r)
+			}))
+			if s.Middleware != nil {
+				handler = s.Middleware(handler)
+			}
+			mux.Handle(route.Pattern, handler)
+		}
 	}
 
 	s.startSsdpServer()
+
+	s.srv = &http.Server{
+		Addr:    s.ListenAddress,
+		Handler: mux,
+	}
 
 	slog.Info("starting UPnP server", slog.String("address", s.ListenAddress))
 
@@ -130,87 +148,6 @@ func (s *Server) Shutdown() {
 	}
 }
 
-func (s *Server) Handle(pattern string, handlerFunc http.HandlerFunc) {
-	s.router.Handle(pattern, s.hook(handlerFunc))
-}
-
-func (s *Server) AppendService(service *device.Service) {
-	s.DeviceDescription.Device.ServiceList = append(s.DeviceDescription.Device.ServiceList, service)
-}
-
-func (s *Server) setupRoutes() error {
-
-	for i := range s.Controllers {
-		if err := s.Controllers[i].OnServerStart(s); err != nil {
-			slog.Error(err.Error())
-			return err
-		}
-	}
-
-	// root desc
-	s.Handle(s.DeviceDescription.Location, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet || r.Method == http.MethodHead {
-			w.Header().Set("Content-Type", soap.ResponseContentTypeXML)
-			_, _ = w.Write(s.deviceDescXML)
-		} else {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-		}
-	})
-
-	return nil
-}
-
-func (s *Server) hook(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.BeforeHook != nil {
-			if !s.BeforeHook(w, r) {
-				return
-			}
-		}
-		w.Header().Set("Server", s.ServerHeader)
-		next.ServeHTTP(w, r)
-		if s.AfterHook != nil {
-			s.AfterHook(w, r)
-		}
-	})
-}
-
-func (s *Server) validateAndSetDefaults() error {
-	if s.ListenAddress == "" {
-		return fmt.Errorf("no ListenAddress specified")
-	}
-	if s.ServerHeader == "" {
-		s.ServerHeader = fmt.Sprintf("%s/%s %s %s", runtime.GOOS, runtime.Version(), "UPnP/1.0", "GoUPnP/1.0")
-	}
-	return nil
-}
-
-func (s *Server) makeDeviceDescription() error {
-
-	friendlyName := DefaultFriendlyName()
-
-	s.DeviceDescription = &device.Description{
-		SpecVersion: device.SpecVersion{Major: 1},
-		Device: &device.Device{
-			DeviceType:   DefaultDeviceType,
-			FriendlyName: friendlyName,
-			UDN:          NewUDN(friendlyName),
-			Manufacturer: DefaultManufacturer,
-			ModelName:    DefaultModelName,
-			ServiceList:  make([]*device.Service, 0),
-		},
-		Location: "/rootDesc.xml",
-	}
-
-	// Possibility to set correct properties to device
-	if s.OnDeviceCreate != nil {
-		if err := s.OnDeviceCreate(s.DeviceDescription); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (s *Server) startSsdpServer() {
 	if s.SsdpInterface == nil {
 		return
@@ -234,12 +171,4 @@ func (s *Server) startSsdpServer() {
 	}
 
 	s.ssdpServer.Start()
-}
-
-func (s *Server) makeDeviceDescXML() (err error) {
-	var b []byte
-	if b, err = xml.Marshal(s.DeviceDescription); err == nil {
-		s.deviceDescXML = append([]byte(xml.Header), b...)
-	}
-	return
 }

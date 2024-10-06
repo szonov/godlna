@@ -1,7 +1,6 @@
 package contentdirectory
 
 import (
-	"github.com/szonov/go-upnp-lib/handler"
 	"github.com/szonov/go-upnp-lib/scpd"
 	"testing"
 )
@@ -14,7 +13,7 @@ func TestGenerateService(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	serviceGen := &handler.ServiceGen{
+	serviceGen := &scpd.ServiceGen{
 		ServiceSCPD:       serviceSCPD,
 		ServiceType:       "urn:schemas-upnp-org:service:ContentDirectory:1",
 		ServiceId:         "urn:upnp-org:serviceId:ContentDirectory",

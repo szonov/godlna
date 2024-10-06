@@ -1,4 +1,4 @@
-package handler
+package scpd
 
 import (
 	"errors"
@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/szonov/go-upnp-lib/scpd"
 )
+
+// This file contains service generator for quick start programming UPnP Service using .xml template as start point
 
 var DataTypeMap = map[string]string{
 	"ui1":    "uint8",
@@ -22,7 +22,7 @@ var DataTypeMap = map[string]string{
 // ServiceGen all params required
 type ServiceGen struct {
 	// serviceSCPD can be taken from xml by scpd.Load([]byte)
-	ServiceSCPD *scpd.SCPD
+	ServiceSCPD *SCPD
 
 	// ServiceType for example "urn:schemas-upnp-org:service:ContentDirectory:1"
 	ServiceType string
@@ -284,8 +284,8 @@ func (gen *ServiceGen) generateHandlerConfig() error {
 		},`
 		actionsBody += fmt.Sprintf(tm, action.name)
 	}
-	tmpl := `func (ctl *%[1]s) createActions() []handler.Action {
-	return []handler.Action{%[2]s
+	tmpl := `func (ctl *%[1]s) actions() []upnp.ActionConfig {
+	return []upnp.ActionConfig{%[2]s
 	}
 }
 `
@@ -294,7 +294,7 @@ func (gen *ServiceGen) generateHandlerConfig() error {
 	return gen.addCodeToFile(
 		gen.CreateHandlerFile,
 		[]string{
-			"github.com/szonov/go-upnp-lib/handler",
+			"github.com/szonov/go-upnp-lib",
 		},
 		code,
 	)
@@ -303,7 +303,7 @@ func (gen *ServiceGen) generateHandlerConfig() error {
 func (gen *ServiceGen) generateController() error {
 	actionsBody := ""
 	for _, action := range gen.actions {
-		tm := `func (ctl *%[1]s) %[2]s(ctx *handler.Context) error {
+		tm := `func (ctl *%[1]s) %[2]s(ctx *upnp.ActionContext) error {
 	//in := ctx.ArgIn.(*ArgIn%[2]s)
 	//out := ctx.ArgOut.(*ArgOut%[2]s)
 	return nil
@@ -316,39 +316,17 @@ func (gen *ServiceGen) generateController() error {
 	ServiceId   = "%[3]s"
 )
 
-type %[1]s struct {
-	Handler *handler.Handler
-	Service *device.Service
-}
-
-func New%[1]s() *%[1]s {
-	ctl := new(%[1]s)
-	ctl.Service = &device.Service{
+func NewServiceController() *upnp.ServiceController {
+	return upnp.NewServiceController(&upnp.Service{
 		ServiceType: ServiceType,
 		ServiceId:   ServiceId,
 		SCPDURL:     "/%[4]s.xml",
 		ControlURL:  "/ctl/%[4]s",
 		EventSubURL: "/evt/%[4]s",
-	}
-	ctl.Handler = &handler.Handler{
-		ServiceType: ctl.Service.ServiceType,
-		Actions: ctl.createActions(),
-	}
-	return ctl
+	}, new(%[1]s).actions())
 }
 
-// OnServerStart implements upnp.Controller interface
-func (ctl *%[1]s) OnServerStart(s *upnp.Server) error {
-	if err := ctl.Handler.Init(); err != nil {
-		return err
-	}
-	s.AppendService(ctl.Service)
-
-	s.Handle(ctl.Service.SCPDURL, ctl.Handler.HandleSCPDURL)
-	s.Handle(ctl.Service.ControlURL, ctl.Handler.HandleControlURL)
-	s.Handle(ctl.Service.EventSubURL, ctl.Handler.HandleEventSubURL)
-
-	return nil
+type %[1]s struct {
 }
 
 `
@@ -364,8 +342,8 @@ func (ctl *%[1]s) OnServerStart(s *upnp.Server) error {
 		gen.ControllerFile,
 		[]string{
 			"github.com/szonov/go-upnp-lib",
-			"github.com/szonov/go-upnp-lib/device",
-			"github.com/szonov/go-upnp-lib/handler",
+			//"github.com/szonov/go-upnp-lib/device",
+			//"github.com/szonov/go-upnp-lib/handler",
 			//"net/http",
 		},
 		code,

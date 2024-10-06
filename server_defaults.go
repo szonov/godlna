@@ -32,3 +32,21 @@ func DefaultFriendlyName() string {
 	}
 	return "UPNP Server"
 }
+
+func DefaultDeviceDesc() *DeviceDescription {
+
+	friendlyName := DefaultFriendlyName()
+
+	return &DeviceDescription{
+		SpecVersion: SpecVersion{Major: 1},
+		Device: &Device{
+			DeviceType:   DefaultDeviceType,
+			FriendlyName: friendlyName,
+			UDN:          NewUDN(friendlyName),
+			Manufacturer: DefaultManufacturer,
+			ModelName:    DefaultModelName,
+			ServiceList:  make([]*Service, 0),
+		},
+		Location: "/rootDesc.xml",
+	}
+}

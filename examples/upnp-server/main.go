@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/szonov/go-upnp-lib/device"
 	"github.com/szonov/go-upnp-lib/examples/upnp-server/presentation"
 	"log/slog"
 	"net/http"
@@ -20,25 +19,27 @@ func main() {
 
 	v4face := network.DefaultV4Interface()
 
+	listenAddress := v4face.IP + ":55975"
 	upnpServer := &upnp.Server{
-		ListenAddress: v4face.IP + ":55975",
+		ListenAddress: listenAddress,
 		SsdpInterface: v4face.Interface,
 		Controllers: []upnp.Controller{
 			contentdirectory.NewServiceController(),
-			presentation.NewController(),
+			new(presentation.Controller),
 		},
-		OnDeviceCreate: func(d *device.Description) error {
-			slog.Debug("call:OnDeviceCreate (time to setup Device)", slog.String("name", d.Device.FriendlyName))
-			return nil
-		},
-		BeforeHook: func(w http.ResponseWriter, r *http.Request) bool {
-			slog.Debug("Request",
-				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
-				slog.String("remote", r.RemoteAddr),
-			)
-			logger.DebugRequest(r)
-			return true
+		DeviceDescription: upnp.DefaultDeviceDesc().With(func(desc *upnp.DeviceDescription) {
+			desc.Device.PresentationURL = "http://" + listenAddress + "/"
+		}),
+		Middleware: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				slog.Debug("Request",
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("remote", r.RemoteAddr),
+				)
+				logger.DebugRequest(r)
+				next.ServeHTTP(w, r)
+			})
 		},
 	}
 

@@ -1,11 +1,11 @@
 package contentdirectory
 
 import (
-	"github.com/szonov/go-upnp-lib/handler"
+	"github.com/szonov/go-upnp-lib"
 )
 
-func (ctl *ServiceController) createActions() []handler.Action {
-	return []handler.Action{
+func (ctl *ServiceController) actions() []upnp.ActionConfig {
+	return []upnp.ActionConfig{
 		{
 			Name: "GetSearchCapabilities",
 			Func: ctl.GetSearchCapabilities,

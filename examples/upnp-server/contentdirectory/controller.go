@@ -38,6 +38,7 @@ func (ctl *ServiceController) GetSystemUpdateID(ctx *upnp.ActionContext) error {
 	return nil
 }
 func (ctl *ServiceController) Browse(ctx *upnp.ActionContext) error {
+
 	//in := ctx.ArgIn.(*ArgInBrowse)
 	out := ctx.ArgOut.(*ArgOutBrowse)
 

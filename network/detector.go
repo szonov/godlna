@@ -1,7 +1,9 @@
 package network
 
 import (
+	"fmt"
 	"net"
+	"strconv"
 )
 
 type V4Interface struct {
@@ -10,7 +12,7 @@ type V4Interface struct {
 }
 
 func (v V4Interface) Valid() bool {
-	return v.Interface != nil
+	return v.Interface != nil && v.IP != ""
 }
 
 func (v V4Interface) String() string {
@@ -18,6 +20,43 @@ func (v V4Interface) String() string {
 		return v.IP + " (" + v.Interface.Name + ")"
 	}
 	return "-.-.-.- (-)"
+}
+
+func (v V4Interface) ListenAddress(port ...int) string {
+	if !v.Valid() {
+		return ""
+	}
+	if len(port) > 0 {
+		return v.IP + ":" + strconv.Itoa(port[0])
+	} else {
+		if p, err := v.AvailablePort(); err == nil {
+			return v.IP + ":" + strconv.Itoa(p)
+		}
+	}
+	return ""
+}
+
+func (v V4Interface) AvailablePort() (port int, err error) {
+
+	if !v.Valid() {
+		err = fmt.Errorf("interface not set")
+		return
+	}
+
+	var server net.Listener
+	// Create a new server without specifying a port (open port chosen automatically)
+	server, err = net.Listen("tcp", v.IP+":0")
+	// no ports are available...
+	if err != nil {
+		return
+	}
+	var portString string
+	_, portString, err = net.SplitHostPort(server.Addr().String())
+	if err == nil {
+		port, err = strconv.Atoi(portString)
+	}
+	_ = server.Close()
+	return
 }
 
 // DefaultV4Interface Find default interface and default ip (v4) on this interface

@@ -7,6 +7,8 @@ import (
 	"github.com/szonov/go-upnp-lib/scpd"
 	"github.com/szonov/go-upnp-lib/soap"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 // ActionHandlerFunc is the executor of action
@@ -70,12 +72,23 @@ type ServiceController struct {
 }
 
 func NewServiceController(service *Service, actions []ActionConfig) *ServiceController {
-	return &ServiceController{
+
+	ctl := &ServiceController{
 		service:        service,
 		actions:        actions,
 		stateVariables: new(events.PropertySet),
 		subscribers:    new(events.Subscribers),
 	}
+
+	// build scpd, during it add stateVariables for arguments with SendEvents="yes"
+	// do it on controller creation to make possibility to creators immediately set initial state variables
+	xmlBody, err := ctl.buildScpdXml(ctl.actions)
+	if err != nil {
+		panic(err)
+	}
+	ctl.scpdXmlBody = append([]byte(xml.Header), xmlBody...)
+
+	return ctl
 }
 
 func (ctl *ServiceController) Service() *Service {
@@ -83,12 +96,6 @@ func (ctl *ServiceController) Service() *Service {
 }
 
 func (ctl *ServiceController) RegisterRoutes(deviceDesc *DeviceDescription) ([]Route, error) {
-	// build scpd, during it add stateVariables for properties with SendEvents="yes"
-	xmlBody, err := ctl.buildScpdXml(ctl.actions)
-	if err != nil {
-		return nil, err
-	}
-	ctl.scpdXmlBody = append([]byte(xml.Header), xmlBody...)
 
 	deviceDesc.Device.AppendService(ctl.service)
 	return []Route{
@@ -171,7 +178,54 @@ func (ctl *ServiceController) handleControlURL(w http.ResponseWriter, r *http.Re
 }
 
 func (ctl *ServiceController) handleEventSubURL(w http.ResponseWriter, r *http.Request) {
-	// todo
+	if r.Method == "SUBSCRIBE" {
+		// subscribe
+		sid := r.Header.Get("SID")
+		nt := r.Header.Get("NT")
+		callback := r.Header.Get("CALLBACK")
+		timeout := events.ParseTimeoutHeader(r.Header.Get("TIMEOUT"))
+
+		var subscriber *events.Subscriber
+		isNewSubscriber := sid == ""
+
+		if isNewSubscriber {
+			// new subscriber
+			if nt != "upnp:event" {
+				w.WriteHeader(http.StatusPreconditionFailed)
+				return
+			}
+			urls, err := events.ParseCallbackHeader(callback)
+			if err != nil || len(urls) == 0 {
+				w.WriteHeader(http.StatusPreconditionFailed)
+			}
+			sid = NewUDN(time.Now().String() + ":" + callback)
+			subscriber = ctl.subscribers.Subscribe(sid, urls, timeout)
+		} else {
+			if nt != "" || callback != "" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			subscriber = ctl.subscribers.Renew(sid, timeout)
+		}
+		if subscriber != nil {
+			w.Header()["SID"] = []string{subscriber.SID}
+			w.Header()["TIMEOUT"] = []string{"Second-" + strconv.Itoa(subscriber.Timeout)}
+
+			if isNewSubscriber {
+				// TODO: new subscription - should send initial state variables
+			}
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if r.Method == "UNSUBSCRIBE" {
+		// unsubscribe
+		w.WriteHeader(ctl.subscribers.Unsubscribe(r.Header.Get("SID")))
+	} else {
+		// not expected
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+
 }
 
 func (ctl *ServiceController) getActionConfig(actionName string) *ActionConfig {
@@ -191,6 +245,12 @@ func (ctl *ServiceController) buildScpdXml(actions []ActionConfig) (body []byte,
 			return
 		}
 	}
-	body, err = xml.Marshal(builder.SCPD())
+	serviceDesc := builder.SCPD()
+	for _, st := range serviceDesc.Variables {
+		if st.Events == "yes" {
+			ctl.stateVariables.AddProperty(st.Name)
+		}
+	}
+	body, err = xml.Marshal(serviceDesc)
 	return
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/szonov/go-upnp-lib/network"
 	"log/slog"
 	"net"
 	"net/http"
@@ -13,13 +14,6 @@ import (
 	"github.com/szonov/go-upnp-lib/ssdp"
 )
 
-//type Controller interface {
-//	// OnServerStart initialize controller variables, which depends on server
-//	// Executed After Device created, but before ListenAndServe
-//	// Good place to add services to Device and setup routes
-//	OnServerStart(s *Server) error
-//}
-
 type Route struct {
 	Pattern    string
 	HandleFunc http.HandlerFunc
@@ -27,32 +21,27 @@ type Route struct {
 
 type Controller interface {
 	// RegisterRoutes initialize controller variables, which depends on device
-	// and register handled routes
-	// Executed After Device created, but before ListenAndServe
-	// Good place to add services to Device and setup routes
+	// and register handled routes. Executed on server start,
+	// Good place to add services to Device, modify device settings
 	RegisterRoutes(deviceDesc *DeviceDescription) ([]Route, error)
 }
 
 type Server struct {
-	// Format ip:port
+	// ListenAddress Format ip:port, by default selected automatically
 	ListenAddress string
 
-	//Direct creation is not allowed, use OnDeviceCreate callback
-
+	// Description of device, by default generated automatically
 	DeviceDescription *DeviceDescription
 
-	//// OnDeviceCreate runs after device created and assigned to server
-	//// Good place to add own fields to Device
-	//OnDeviceCreate func(*device.Description) error
-
+	// All controllers (DeviceController added automatically to this list on starting server)
 	Controllers []Controller
 
 	// Optional: Default is "[runtime.GOOS]/[runtime.Version()] UPnP/1.0 GoUPnP/1.0"
 	ServerHeader string
 
 	// SsdpInterface Interface, on which start SSDP server
-	// If not provided, build-in SSDP server will be disabled, and you can start another ssdp server
-	// Optional: No defaults
+	// If ListenAddress not defined, then ListenAddress and SsdpInterface chosen automatically
+	// To disable ssdp server you should define ListenAddress and skip setup of SsdpInterface
 	SsdpInterface *net.Interface
 
 	// SsdpMaxAge MaxAge parameter for build-in ssdp server, without SsdpInterface it is useful
@@ -64,8 +53,7 @@ type Server struct {
 	// SsdpMulticastTTL MulticastTTL parameter for build-in ssdp server, without SsdpInterface it is useful
 	SsdpMulticastTTL int
 
-	BeforeHook func(w http.ResponseWriter, r *http.Request) bool // true = continue execution, false = stop
-	AfterHook  func(w http.ResponseWriter, r *http.Request)
+	// Middleware own handler... do not forget to include next.ServeHTTP(w, r) inside
 	Middleware func(http.Handler) http.Handler
 
 	// private
@@ -87,11 +75,31 @@ func (s *Server) ListenAndServe() error {
 	var err error
 
 	if s.ListenAddress == "" {
-		return fmt.Errorf("no ListenAddress specified")
+		// try to detect automatically
+		if s.SsdpInterface != nil {
+			s.ListenAddress = network.DefaultV4Interface(s.SsdpInterface.Name).ListenAddress()
+		} else {
+			v4face := network.DefaultV4Interface()
+			s.ListenAddress = v4face.ListenAddress()
+			s.SsdpInterface = v4face.Interface
+		}
+		if s.ListenAddress == "" {
+			err = fmt.Errorf("network configuration problem")
+			slog.Error(err.Error())
+			return err
+		}
+		slog.Info("network chosen automatically", "addr", s.ListenAddress)
 	}
 
 	if s.ServerHeader == "" {
 		s.ServerHeader = fmt.Sprintf("%s/%s %s %s", runtime.GOOS, runtime.Version(), "UPnP/1.0", "GoUPnP/1.0")
+	}
+
+	// make default DeviceDescription if not defined
+	if s.DeviceDescription == nil {
+		s.DeviceDescription = DefaultDeviceDesc().With(func(desc *DeviceDescription) {
+			desc.Device.PresentationURL = "http://" + s.ListenAddress + "/"
+		})
 	}
 
 	// add controller with device description to the last position,

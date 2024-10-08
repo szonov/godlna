@@ -193,14 +193,17 @@ func (m *Manager) notifySubscriber(s Subscriber, body []byte) {
 		return
 	}
 	for _, u := range s.URLs {
-		if err := SendNotification(s.SID, s.Seq, u, body); err != nil {
-			slog.Debug("Failed to send notification",
-				slog.String("err", err.Error()),
-				slog.String("to", u.String()),
-				slog.String("sid", s.SID),
-			)
-			// TODO: maybe delete subscription in case of error...?
-		}
+		go func() {
+			time.Sleep(1 * time.Second)
+			if err := SendNotification(s.SID, s.Seq, u, body); err != nil {
+				slog.Debug("Failed to send notification",
+					slog.String("err", err.Error()),
+					slog.String("to", u.String()),
+					slog.String("sid", s.SID),
+				)
+				// TODO: maybe delete subscription in case of error...?
+			}
+		}()
 	}
 }
 

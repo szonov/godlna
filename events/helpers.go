@@ -113,9 +113,7 @@ func SendNotification(sid string, seq uint32, u url.URL, body []byte) error {
 		return fmt.Errorf("could not create a request")
 	}
 
-	req.Header["HOST"] = []string{u.Host}
 	req.Header["CONTENT-TYPE"] = []string{`text/xml; charset="utf-8"`}
-	req.Header["CONTENT-LENGTH"] = []string{strconv.Itoa(len(body))}
 	req.Header["NT"] = []string{"upnp:event"}
 	req.Header["NTS"] = []string{"upnp:propchange"}
 	req.Header["SID"] = []string{sid}

@@ -1,52 +1,37 @@
 package upnp
 
 import (
-	"encoding/xml"
 	"fmt"
-	"github.com/szonov/go-upnp-lib/events"
 	"github.com/szonov/go-upnp-lib/scpd"
+	"github.com/szonov/go-upnp-lib/service"
 	"github.com/szonov/go-upnp-lib/soap"
 	"net/http"
-	"strconv"
-	"time"
 )
 
-// ActionHandlerFunc is the executor of action
-type ActionHandlerFunc func(ctx *ActionContext) error
+type (
+	ServiceController struct {
+		service     *Service
+		config      *service.Config
+		State       *service.State
+		scpdXmlBody []byte
+		handlers    map[string]ActionHandlerFunc
+	}
 
-// ActionArgsFunc returns arguments in appropriate type for action handling
-type ActionArgsFunc func() (in any, out any)
+	ActionContext struct {
+		Action *service.Action
+		State  *service.State
+		w      http.ResponseWriter
+		r      *http.Request
+		cancel bool
+	}
 
-// ActionConfig is the configuration for action
-type ActionConfig struct {
-	// Name of action
-	Name string
-	// Func handles action
-	Func ActionHandlerFunc
-	// Args is a function which create input, output arguments during action handling
-	Args ActionArgsFunc
-}
-
-// ActionContext passed to action handler function,
-type ActionContext struct {
-	Action soap.Action
-	ArgIn  any
-	ArgOut any
-	// private
-	ctl    *ServiceController
-	cancel bool
-	w      http.ResponseWriter
-	r      *http.Request
-}
-
-func (ctx *ActionContext) Controller() *ServiceController {
-	return ctx.ctl
-}
+	ActionHandlerFunc func(*ActionContext) error
+)
 
 func (ctx *ActionContext) Cancel() {
 	ctx.cancel = true
-	return
 }
+
 func (ctx *ActionContext) Writer() http.ResponseWriter {
 	return ctx.w
 }
@@ -55,44 +40,23 @@ func (ctx *ActionContext) Request() *http.Request {
 	return ctx.r
 }
 
-func (ctx *ActionContext) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-	start.Name.Local = "u:" + ctx.Action.Name + "Response"
-	start.Attr = []xml.Attr{
-		{Name: xml.Name{Local: "xmlns:u"}, Value: ctx.Action.ServiceType},
-	}
-	return e.EncodeElement(ctx.ArgOut, start)
-}
+func NewServiceController(s *Service, scpdXmlBody []byte, handlers map[string]ActionHandlerFunc) *ServiceController {
 
-type ServiceController struct {
-	service        *Service
-	actions        []ActionConfig
-	stateVariables *events.PropertySet
-	subscribers    *events.Subscribers
-	scpdXmlBody    []byte
-}
-
-func NewServiceController(service *Service, actions []ActionConfig) *ServiceController {
-
-	ctl := &ServiceController{
-		service:        service,
-		actions:        actions,
-		stateVariables: new(events.PropertySet),
-		subscribers:    new(events.Subscribers),
-	}
-
-	// build scpd, during it add stateVariables for arguments with SendEvents="yes"
-	// do it on controller creation to make possibility to creators immediately set initial state variables
-	xmlBody, err := ctl.buildScpdXml(ctl.actions)
-	if err != nil {
+	doc := &scpd.Document{}
+	if err := doc.Load(scpdXmlBody); err != nil {
 		panic(err)
 	}
-	ctl.scpdXmlBody = append([]byte(xml.Header), xmlBody...)
 
+	cfg := service.NewConfig(s.ServiceType).FromDocument(doc)
+
+	ctl := &ServiceController{
+		service:     s,
+		config:      cfg,
+		State:       service.NewState(cfg.EventfulVariables()),
+		scpdXmlBody: scpdXmlBody,
+		handlers:    handlers,
+	}
 	return ctl
-}
-
-func (ctl *ServiceController) Service() *Service {
-	return ctl.service
 }
 
 func (ctl *ServiceController) RegisterRoutes(deviceDesc *DeviceDescription) ([]Route, error) {
@@ -103,19 +67,6 @@ func (ctl *ServiceController) RegisterRoutes(deviceDesc *DeviceDescription) ([]R
 		{ctl.service.ControlURL, ctl.handleControlURL},
 		{ctl.service.EventSubURL, ctl.handleEventSubURL},
 	}, nil
-}
-
-func (ctl *ServiceController) SetVariable(name string, value string, initialState ...bool) *ServiceController {
-	ctl.stateVariables.Set(name, value, initialState...)
-	return ctl
-}
-
-func (ctl *ServiceController) GetVariable(name string) string {
-	return ctl.stateVariables.Get(name)
-}
-
-func (ctl *ServiceController) NotifySubscribers() {
-	// events.
 }
 
 func (ctl *ServiceController) handleSCPDURL(w http.ResponseWriter, r *http.Request) {
@@ -140,117 +91,61 @@ func (ctl *ServiceController) handleControlURL(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// detect action configuration
-	cfg := ctl.getActionConfig(soapAction.Name)
-	if cfg == nil {
+	action := ctl.config.NewAction(soapAction.Name)
+	if action == nil {
 		err := fmt.Errorf("unknown action '%s'", soapAction.Name)
 		soap.NewUPnPError(soap.InvalidActionErrorCode, err).SendResponse(w, http.StatusUnauthorized)
 		return
 	}
 
-	// prepare context
-	argIn, argOut := cfg.Args()
-	ctx := &ActionContext{
-		Action: *soapAction,
-		ArgIn:  argIn,
-		ArgOut: argOut,
-		ctl:    ctl,
-		w:      w,
-		r:      r,
-	}
-
 	// unmarshal request
-	if err := soap.UnmarshalEnvelopeBody(r.Body, ctx.ArgIn); err != nil {
+	if err := soap.UnmarshalEnvelopeBody(r.Body, action); err != nil {
 		soap.NewUPnPError(soap.ArgumentValueInvalidErrorCode, err).SendResponse(w, http.StatusBadRequest)
 		return
 	}
 
+	ctx := &ActionContext{
+		Action: action,
+		State:  ctl.State,
+		w:      w,
+		r:      r,
+	}
+
 	// handle action
-	if err := cfg.Func(ctx); err != nil {
-		soap.NewFailed(err).SendResponse(w, http.StatusInternalServerError)
-		return
+	if f, ok := ctl.handlers[action.Name]; ok {
+		if err := f(ctx); err != nil {
+			soap.NewFailed(err).SendResponse(w, http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// send success response
 	if !ctx.cancel {
-		soap.NewResponseEnvelope(ctx).SendResponse(w)
+		soap.NewResponseEnvelope(action).SendResponse(w)
 	}
 }
 
 func (ctl *ServiceController) handleEventSubURL(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "SUBSCRIBE" {
-		// subscribe
-		sid := r.Header.Get("SID")
-		nt := r.Header.Get("NT")
-		callback := r.Header.Get("CALLBACK")
-		timeout := events.ParseTimeoutHeader(r.Header.Get("TIMEOUT"))
-
-		var subscriber *events.Subscriber
-		isNewSubscriber := sid == ""
-
-		if isNewSubscriber {
-			// new subscriber
-			if nt != "upnp:event" {
-				w.WriteHeader(http.StatusPreconditionFailed)
-				return
-			}
-			urls, err := events.ParseCallbackHeader(callback)
-			if err != nil || len(urls) == 0 {
-				w.WriteHeader(http.StatusPreconditionFailed)
-			}
-			sid = NewUDN(time.Now().String() + ":" + callback)
-			subscriber = ctl.subscribers.Subscribe(sid, urls, timeout)
-		} else {
-			if nt != "" || callback != "" {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			subscriber = ctl.subscribers.Renew(sid, timeout)
+		res := ctl.State.Subscribe(
+			r.Header.Get("SID"),
+			r.Header.Get("NT"),
+			r.Header.Get("CALLBACK"),
+			r.Header.Get("TIMEOUT"),
+		)
+		if res.Success {
+			w.Header()["SID"] = []string{res.SID}
+			w.Header()["TIMEOUT"] = []string{res.TimeoutHeaderString}
 		}
-		if subscriber != nil {
-			w.Header()["SID"] = []string{subscriber.SID}
-			w.Header()["TIMEOUT"] = []string{"Second-" + strconv.Itoa(subscriber.Timeout)}
-
-			if isNewSubscriber {
-				// TODO: new subscription - should send initial state variables
-			}
-			return
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		w.WriteHeader(res.StatusCode)
 	} else if r.Method == "UNSUBSCRIBE" {
-		// unsubscribe
-		w.WriteHeader(ctl.subscribers.Unsubscribe(r.Header.Get("SID")))
+		statusCode := ctl.State.Unsubscribe(
+			r.Header.Get("SID"),
+			r.Header.Get("NT"),
+			r.Header.Get("CALLBACK"),
+		)
+		w.WriteHeader(statusCode)
 	} else {
-		// not expected
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
-
-}
-
-func (ctl *ServiceController) getActionConfig(actionName string) *ActionConfig {
-	for _, action := range ctl.actions {
-		if action.Name == actionName {
-			return &action
-		}
-	}
-	return nil
-}
-
-func (ctl *ServiceController) buildScpdXml(actions []ActionConfig) (body []byte, err error) {
-	builder := scpd.NewBuilder(1, 0)
-	for _, action := range actions {
-		in, out := action.Args()
-		if err = builder.Add(action.Name, in, out); err != nil {
-			return
-		}
-	}
-	serviceDesc := builder.SCPD()
-	for _, st := range serviceDesc.Variables {
-		if st.Events == "yes" {
-			ctl.stateVariables.AddProperty(st.Name)
-		}
-	}
-	body, err = xml.Marshal(serviceDesc)
-	return
 }

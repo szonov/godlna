@@ -23,6 +23,7 @@ func main() {
 		ListenAddress: listenAddress,
 		SsdpInterface: v4face.Interface,
 		Controllers: []upnp.Controller{
+			//contentdirectory.NewServiceController(),
 			contentdirectory.NewServiceController(),
 			new(presentation.Controller),
 		},

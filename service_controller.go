@@ -118,6 +118,7 @@ func (ctl *ServiceController) handleControlURL(w http.ResponseWriter, r *http.Re
 			return
 		}
 	}
+	// todo: fallback
 
 	// send success response
 	if !ctx.cancel {

@@ -10,7 +10,7 @@ const (
 	ServiceId   = "urn:upnp-org:serviceId:ContentDirectory"
 )
 
-//go:embed scpd_template.xml
+//go:embed contentdirectory1.xml
 var embedServiceXML []byte
 
 func NewServiceController() *upnp.ServiceController {

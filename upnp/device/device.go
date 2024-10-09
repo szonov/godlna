@@ -1,4 +1,4 @@
-package upnp
+package device
 
 import (
 	"encoding/xml"
@@ -10,6 +10,11 @@ const (
 	DlnaDeviceXMLNamespace = "urn:schemas-dlna-org:device-1-0"
 	DlnaSecXMLNamespace    = "http://www.sec.co.kr/dlna"
 )
+
+var Version = SpecVersion{
+	Major: 1,
+	Minor: 0,
+}
 
 // reference https://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.0-20080424.pdf
 // on the page 26 there is XML listing and then detailed description
@@ -61,7 +66,7 @@ type VendorXML struct {
 // MarshalXML generate XML output for VendorXML
 // Example:
 //
-//	device.VendorXML = append(device.VendorXML, upnp.VendorXML{
+//	device.VendorXML = append(device.VendorXML, device.VendorXML{
 //		XMLName: xml.Name{Local: "dlna:X_DLNADOC", Space: "urn:schemas-dlna-org:device-1-0"},
 //		Value:   "DMS-1.50",
 //	})
@@ -76,6 +81,13 @@ func (v VendorXML) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 		start.Name.Space = ""
 	}
 	return e.EncodeElement(v.Value, start)
+}
+
+func BuildVendorXML(tag string, value string, space string) VendorXML {
+	return VendorXML{
+		XMLName: xml.Name{Local: tag, Space: space},
+		Value:   value,
+	}
 }
 
 type Device struct {
@@ -115,7 +127,15 @@ func (d *Device) AppendService(service *Service) {
 	d.ServiceList = append(d.ServiceList, service)
 }
 
-type DeviceDescription struct {
+func (d *Device) AppendVendorXML(vendorXML VendorXML) {
+	d.VendorXML = append(d.VendorXML, vendorXML)
+}
+
+func (d *Device) AppendIcon(icon Icon) {
+	d.IconList = append(d.IconList, icon)
+}
+
+type Description struct {
 	// Required
 	SpecVersion SpecVersion `xml:"specVersion"`
 	// Device Required
@@ -129,7 +149,7 @@ type DeviceDescription struct {
 }
 
 // MarshalXML generate XML output for Description
-func (r *DeviceDescription) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+func (r *Description) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 	var err error
 
@@ -165,7 +185,7 @@ func (r *DeviceDescription) MarshalXML(e *xml.Encoder, start xml.StartElement) e
 	}
 	return e.EncodeToken(xml.EndElement{Name: start.Name})
 }
-func (r *DeviceDescription) With(f func(desc *DeviceDescription)) *DeviceDescription {
+func (r *Description) With(f func(desc *Description)) *Description {
 	f(r)
 	return r
 }

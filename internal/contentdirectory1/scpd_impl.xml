@@ -1,5 +1,4 @@
 <?xml version="1.0"?>
-<!-- reference https://upnp.org/specs/av/UPnP-av-ContentDirectory-v1-Service.pdf -->
 <scpd xmlns="urn:schemas-upnp-org:service-1-0">
     <specVersion>
         <major>1</major>
@@ -399,6 +398,5 @@
             <name>ContainerUpdateIDs</name>
             <dataType>string</dataType>
         </stateVariable>
-        <!-- Declarations for other state variables added by UPnP vendor (if any) go here -->
     </serviceStateTable>
 </scpd>

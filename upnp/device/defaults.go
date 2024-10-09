@@ -1,4 +1,4 @@
-package upnp
+package device
 
 import (
 	"crypto/md5"
@@ -10,8 +10,8 @@ import (
 
 const (
 	DefaultDeviceType   = "urn:schemas-upnp-org:device:MediaServer:1"
-	DefaultManufacturer = "Private"
-	DefaultModelName    = "UPNP Server"
+	DefaultManufacturer = "Home"
+	DefaultModelName    = "DLNA Server"
 )
 
 func NewUDN(unique string) string {
@@ -30,15 +30,15 @@ func DefaultFriendlyName() string {
 	if u, err := user.Current(); err == nil {
 		return u.Name
 	}
-	return "UPNP Server"
+	return "DLNA Server"
 }
 
-func DefaultDeviceDesc() *DeviceDescription {
+func DefaultDeviceDescription() *Description {
 
 	friendlyName := DefaultFriendlyName()
 
-	return &DeviceDescription{
-		SpecVersion: SpecVersion{Major: 1},
+	return &Description{
+		SpecVersion: Version,
 		Device: &Device{
 			DeviceType:   DefaultDeviceType,
 			FriendlyName: friendlyName,

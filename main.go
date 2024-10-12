@@ -1,11 +1,12 @@
 package main
 
 import (
-	"github.com/szonov/godlna/internal/contentdirectory1"
+	"github.com/szonov/godlna/internal/backend"
+	"github.com/szonov/godlna/internal/contentdirectory"
 	"github.com/szonov/godlna/internal/deviceinfo"
 	"github.com/szonov/godlna/internal/dlnaserver"
 	"github.com/szonov/godlna/internal/logger"
-	"github.com/szonov/godlna/network"
+	"github.com/szonov/godlna/internal/network"
 	"github.com/szonov/godlna/upnp/device"
 	"log/slog"
 	"net/http"
@@ -15,6 +16,13 @@ import (
 
 func main() {
 	logger.InitLogger()
+
+	if err := backend.Init("storage/media", "storage/cache"); err != nil {
+		slog.Error("PANIC", "err", err)
+		return
+	}
+	scanner := backend.NewScanner()
+	scanner.Scan()
 
 	v4face := network.DefaultV4Interface()
 	listenAddress := v4face.ListenAddress(55975)
@@ -35,11 +43,11 @@ func main() {
 			},
 			ServiceList: []*device.Service{
 				{
-					ServiceType: contentdirectory1.ServiceType,
-					ServiceId:   contentdirectory1.ServiceId,
+					ServiceType: contentdirectory.ServiceType,
+					ServiceId:   contentdirectory.ServiceId,
 					SCPDURL:     "/ContentDirectory.xml",
-					ControlURL:  "/ctl/ContentDirectory",
-					EventSubURL: "/evt/ContentDirectory",
+					ControlURL:  "/ctl/{profile}/ContentDirectory",
+					EventSubURL: "/evt/{profile}/ContentDirectory",
 				},
 			},
 			PresentationURL: "http://" + listenAddress + "/",
@@ -52,7 +60,7 @@ func main() {
 	}
 
 	deviceController := deviceinfo.NewController(deviceDescription)
-	cdsController := contentdirectory1.NewController()
+	cdsController := contentdirectory.NewController()
 
 	dlnaServer := &dlnaserver.Server{
 		ListenAddress:     listenAddress,
@@ -62,12 +70,14 @@ func main() {
 		BeforeHttpStart: func(s *dlnaserver.Server, mux *http.ServeMux, desc *device.Description) {
 
 			mux.HandleFunc("/", s.HookFunc(deviceController.HandlePresentationURL))
-			mux.HandleFunc("/icons/", s.HookFunc(deviceController.HandleIcons))
 			mux.HandleFunc("/rootDesc.xml", s.HookFunc(deviceController.HandleDescRoot))
 
+			mux.HandleFunc("/icons/", s.HookFunc(deviceController.HandleIcons))
+
 			mux.HandleFunc("/ContentDirectory.xml", s.HookFunc(cdsController.HandleSCPDURL))
-			mux.HandleFunc("/ctl/ContentDirectory", s.HookFunc(cdsController.HandleControlURL))
-			mux.HandleFunc("/evt/ContentDirectory", s.HookFunc(cdsController.HandleEventSubURL))
+			mux.HandleFunc("/ctl/{profile}/ContentDirectory", s.HookFunc(cdsController.HandleControlURL))
+			mux.HandleFunc("/evt/{profile}/ContentDirectory", s.HookFunc(cdsController.HandleEventSubURL))
+			mux.HandleFunc("/thumbs/{profile}/{image}", s.HookFunc(cdsController.HandleThumbnailURL))
 
 		},
 	}

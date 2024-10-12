@@ -36,6 +36,18 @@ func (s *State) GetUint32(name string) uint32 {
 	}
 	return 0
 }
+func (s *State) GetUint64(name string) uint64 {
+	if u, err := strconv.ParseUint(s.Get(name), 10, 64); err == nil {
+		return u
+	}
+	return 0
+}
+func (s *State) GetInt64(name string) int64 {
+	if u, err := strconv.ParseInt(s.Get(name), 10, 64); err == nil {
+		return u
+	}
+	return 0
+}
 
 func (s *State) Set(name string, value string) *State {
 	if _, ok := s.variables.Load(name); ok {
@@ -46,6 +58,16 @@ func (s *State) Set(name string, value string) *State {
 
 func (s *State) SetUint32(name string, value uint32) *State {
 	s.Set(name, strconv.FormatUint(uint64(value), 10))
+	return s
+}
+
+func (s *State) SetUint64(name string, value uint64) *State {
+	s.Set(name, strconv.FormatUint(value, 10))
+	return s
+}
+
+func (s *State) SetInt64(name string, value int64) *State {
+	s.Set(name, strconv.FormatInt(value, 10))
 	return s
 }
 

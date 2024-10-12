@@ -1,10 +1,13 @@
-package contentdirectory1
+package contentdirectory
 
 import (
 	_ "embed"
 	"fmt"
-	"github.com/szonov/godlna/soap"
+	"github.com/szonov/godlna/internal/backend"
+	"github.com/szonov/godlna/internal/client"
+	"github.com/szonov/godlna/internal/soap"
 	"github.com/szonov/godlna/upnp/events"
+	"log/slog"
 	"net/http"
 )
 
@@ -13,7 +16,7 @@ const (
 	ServiceId   = "urn:upnp-org:serviceId:ContentDirectory"
 )
 
-//go:embed scpd_impl.xml
+//go:embed scpd.xml
 var embedServiceXML []byte
 
 type Controller struct {
@@ -28,7 +31,7 @@ func NewController() *Controller {
 			"ContainerUpdateIDs",
 		}),
 	}
-	ctl.state.SetUint32("SystemUpdateID", 10)
+	ctl.state.SetUint64("SystemUpdateID", backend.GetCurrentUpdateID())
 	return ctl
 }
 
@@ -61,13 +64,24 @@ func (ctl *Controller) HandleControlURL(w http.ResponseWriter, r *http.Request) 
 	switch soapAction.Name {
 	case "Browse":
 		ctl.actionBrowse(soapAction, w, r)
+	case "X_GetFeatureList":
+		ctl.actionGetFeatureList(soapAction, w, r)
 	default:
 		err := fmt.Errorf("unknown action '%s'", soapAction.Name)
-		soap.NewUPnPError(soap.InvalidActionErrorCode, err).SendResponse(w, http.StatusUnauthorized)
+		soap.SendUPnPError(soap.InvalidActionErrorCode, err.Error(), w, http.StatusUnauthorized)
 		return
 	}
 }
 
-func (ctl *Controller) error(err error, w http.ResponseWriter) {
-	soap.NewUPnPError(soap.InvalidActionErrorCode, err).SendResponse(w, http.StatusInternalServerError)
+func (ctl *Controller) HandleThumbnailURL(w http.ResponseWriter, r *http.Request) {
+	profile := client.GetProfileByRequest(r)
+	image := r.PathValue("image")
+	if image == "" {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	slog.Debug("IMAGE", slog.Any("profile", profile), slog.String("image", image))
+	soap.SendUPnPError(soap.InvalidActionErrorCode, image, w, http.StatusUnauthorized)
+	return
 }

@@ -305,7 +305,16 @@
                 </argument>
             </argumentList>
         </action>
-        <!--Declarations for other actions added by UPnP vendor (if any) go here-->
+        <action>
+            <name>X_GetFeatureList</name>
+            <argumentList>
+                <argument>
+                    <name>FeatureList</name>
+                    <direction>out</direction>
+                    <relatedStateVariable>X_ARG_TYPE_FeatureList</relatedStateVariable>
+                </argument>
+            </argumentList>
+        </action>
     </actionList>
     <serviceStateTable>
         <stateVariable sendEvents="yes">
@@ -396,6 +405,10 @@
         </stateVariable>
         <stateVariable sendEvents="yes">
             <name>ContainerUpdateIDs</name>
+            <dataType>string</dataType>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>X_ARG_TYPE_FeatureList</name>
             <dataType>string</dataType>
         </stateVariable>
     </serviceStateTable>

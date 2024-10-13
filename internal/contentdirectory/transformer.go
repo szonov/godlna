@@ -7,12 +7,13 @@ import (
 	"github.com/szonov/godlna/internal/client"
 	"github.com/szonov/godlna/internal/upnpav"
 	"gopkg.in/vansante/go-ffprobe.v2"
-	"net/url"
+	"path/filepath"
 	"strconv"
 	"time"
 )
 
 func transformObject(item *backend.Object, profile *client.Profile) (ret interface{}, err error) {
+
 	objectID := item.ObjectID
 	parentID := item.ParentID
 
@@ -53,15 +54,10 @@ func transformObject(item *backend.Object, profile *client.Profile) (ret interfa
 		return
 	}
 
-	iconURI := &url.URL{
-		Scheme: "http",
-		Host:   profile.Host,
-		Path:   "/thumbs/" + profile.Name + "/" + item.ObjectID + ".jpg",
-	}
-	obj.Icon = iconURI.String()
+	obj.Icon = "http://" + profile.Host + "/thumbs/" + profile.Name + "/" + item.ObjectID + ".jpg"
 	obj.AlbumArtURI = &upnpav.AlbumArtURI{
-		Value:   iconURI.String(),
-		Profile: "JPEG_TN",
+		Value:   obj.Icon,
+		Profile: "JPEG_SM",
 	}
 
 	res := make([]upnpav.Resource, 0)
@@ -73,12 +69,7 @@ func transformObject(item *backend.Object, profile *client.Profile) (ret interfa
 	vstream := meta.FirstVideoStream()
 	astream := meta.FirstAudioStream()
 	res = append(res, upnpav.Resource{
-		URL: (&url.URL{
-			Scheme: "http",
-			Host:   profile.Host,
-			//Path:   "/video/" + profile.Name + "/" + item.ObjectID + ".avi",
-			Path: "/video/" + profile.Name + "/" + item.ObjectID + ".mkv",
-		}).String(),
+		URL: "http://" + profile.Host + "/video/" + profile.Name + "/" + item.ObjectID + filepath.Ext(item.Path),
 		//ProtocolInfo: "http-get:*:video/avi:DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000",
 		ProtocolInfo:    "http-get:*:video/x-mkv:DLNA.ORG_PN=MATROSKA;DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=21D00000000000000000000000000000",
 		Bitrate:         backend.FmtBitrate(meta.Format.BitRate),
@@ -88,11 +79,13 @@ func transformObject(item *backend.Object, profile *client.Profile) (ret interfa
 		Resolution:      fmt.Sprintf("%dx%d", vstream.Width, vstream.Height),
 		AudioChannels:   strconv.Itoa(astream.Channels),
 	})
+
+	// icon
 	res = append(res, upnpav.Resource{
-		URL: iconURI.String(),
-		//ProtocolInfo: "http-get:*:video/avi:DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000",
-		ProtocolInfo: "http-get:*:image/jpeg:DLNA.ORG_PN=JPEG_TN;DLNA.ORG_FLAGS=00f00000000000000000000000000000",
+		URL:          obj.Icon,
+		ProtocolInfo: "http-get:*:image/jpeg:DLNA.ORG_PN=JPEG_SM;DLNA.ORG_FLAGS=00f00000000000000000000000000000",
 	})
+
 	ret = upnpav.Item{
 		Object: obj,
 		Res:    res,

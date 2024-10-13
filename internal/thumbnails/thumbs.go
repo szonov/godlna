@@ -66,35 +66,40 @@ func GetImageInfo(image string, profile *client.Profile) (*ImageInfo, error) {
 
 func makeThumb(src, dest string, profile *client.Profile) (err error) {
 
-	if err = fs_util.EnsureDirectoryExistsForFile(dest); err != nil {
-		return err
-	}
+	videoThumb := dest + ".thumb"
 
-	// make thumbnail from video file, save it with extension .thumb
-	args := make([]string, 0)
-	args = append(args, "-s", "0", "-q", "10", "-c", "jpeg")
-	args = append(args, "-t", "10")
-	args = append(args, "-i", src, "-o", dest+".thumb")
-	fmt.Printf("ICON ARGS: %v", args)
-	cmd := exec.Command("ffmpegthumbnailer", args...)
-	_, err = cmd.Output()
-	if err != nil {
-		slog.Error("makeVideoThumb",
-			slog.String("cmd", "ffmpegthumbnailer "+strings.Join(cmd.Args, " ")),
-			slog.String("err", err.Error()),
-		)
+	if !fs_util.FileExists(videoThumb) {
+		if err = fs_util.EnsureDirectoryExistsForFile(dest); err != nil {
+			return err
+		}
+
+		// make thumbnail from video file, save it with extension .thumb
+		//args := make([]string, 0)
+		//args = append(args, "-s", "0", "-q", "10", "-c", "jpeg", "-t", "10", "-i", src, "-o", dest+".thumb")
+		//args := []string{"-s", "0", "-q", "10", "-c", "jpeg", "-t", "10", "-i", src, "-o", dest + ".thumb"}
+		//args = append(args, "-t", "10")
+		//args = append(args, "-i", src, "-o", dest+".thumb")
+		//cmd := exec.Command("ffmpegthumbnailer", args...)
+		cmd := exec.Command("ffmpegthumbnailer",
+			"-s", "0", "-q", "10", "-c", "jpeg", "-t", "10",
+			"-i", src, "-o", videoThumb)
+		_, err = cmd.Output()
+		if err != nil {
+			slog.Error("makeVideoThumb",
+				slog.String("cmd", "ffmpegthumbnailer "+strings.Join(cmd.Args, " ")),
+				slog.String("err", err.Error()),
+			)
+		}
 	}
 
 	// create now real final thumb with percents included
+	// random for testing view on TV
 	percent := rand.IntN(101)
 
-	err = MakeFinalThumb(dest+".thumb", dest, 480, profile.UseSquareThumbnails(), uint8(percent))
+	err = MakeFinalThumb(videoThumb, dest, 480, profile.UseSquareThumbnails(), uint8(percent))
 
 	if err != nil {
-		slog.Error("makeFinalThumb",
-			slog.String("dest", dest),
-			slog.String("err", err.Error()),
-		)
+		slog.Error("makeFinalThumb", slog.String("dest", dest), slog.String("err", err.Error()))
 	}
 	return
 }
@@ -120,10 +125,12 @@ func MakeFinalThumb(src, dest string, thumbWidth int, squire bool, percent uint8
 		if percent > 100 {
 			percent = 100
 		}
-		percentWidth := int(percent) * thumbWidth / 100
-		redRect := image.Rect(0, imageHeight-percentHeight, percentWidth, imageHeight)
-		percentColor := color.RGBA{R: 110, G: 215, B: 92, A: 255}
-		draw.Draw(dstImage, redRect, &image.Uniform{C: percentColor}, image.Point{}, draw.Src)
+		spaceAround := 10
+		barWidth := thumbWidth - 2*spaceAround
+		percentWidth := int(percent) * barWidth / 100
+		bar := image.Rect(spaceAround, imageHeight-percentHeight, percentWidth, imageHeight-spaceAround)
+		barColor := color.RGBA{R: 110, G: 215, B: 92, A: 255}
+		draw.Draw(dstImage, bar, &image.Uniform{C: barColor}, image.Point{}, draw.Src)
 	}
 
 	err = imaging.Save(dstImage, dest)

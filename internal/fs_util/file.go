@@ -1,6 +1,7 @@
 package fs_util
 
 import (
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -41,4 +42,11 @@ func CopyFile(src, dst string) (err error) {
 	}
 	err = destination.Sync()
 	return
+}
+
+func FileExists(name string) bool {
+	if _, err := os.Stat(name); errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	return true
 }

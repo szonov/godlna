@@ -24,6 +24,10 @@ func (p *Profile) UseVideoAsRoot() bool {
 	return p.Name != Samsung4
 }
 
+func (p *Profile) UseSquareThumbnails() bool {
+	return p.Name == Samsung5
+}
+
 func GetProfileByRequest(r *http.Request) *Profile {
 	p := &Profile{
 		Name: DefaultProfile,

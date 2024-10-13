@@ -119,3 +119,13 @@ func GetObjects(filter ObjectFilter) ([]*Object, uint64) {
 
 	return items, totalCount
 }
+
+func GetObjectPath(objectID string) string {
+	var path *string
+	_ = sq.Select("PATH").From("OBJECTS").Where(sq.Eq{"OBJECT_ID": objectID}).
+		RunWith(DB).QueryRow().Scan(&path)
+	if path != nil {
+		return *path
+	}
+	return ""
+}

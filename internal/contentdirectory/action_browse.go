@@ -26,7 +26,7 @@ type argOutBrowse struct {
 	UpdateID       uint64
 }
 
-func (ctl *Controller) actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Request) {
+func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Request) {
 
 	// input
 	in := &argInBrowse{}
@@ -69,7 +69,7 @@ func (ctl *Controller) actionBrowse(soapAction *soap.Action, w http.ResponseWrit
 
 	objects, out.TotalMatches = backend.GetObjects(filter)
 	out.NumberReturned = uint64(len(objects))
-	out.UpdateID = ctl.state.GetUint64("SystemUpdateID")
+	out.UpdateID = serviceState.GetUint64("SystemUpdateID")
 
 	if in.BrowseFlag == "BrowseMetadata" && out.TotalMatches == 0 {
 		soap.SendUPnPError(upnpav.NoSuchObjectErrorCode, "no such object", w, http.StatusBadRequest)

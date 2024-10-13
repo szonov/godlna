@@ -1,8 +1,11 @@
 package backend
 
 import (
+	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 )
 
 var videoExts = []string{
@@ -21,29 +24,38 @@ func isVideoFile(file string) bool {
 	return false
 }
 
-func nameWithoutExt(file string) string {
+func NameWithoutExt(file string) string {
 	ext := filepath.Ext(file)
 	return file[0 : len(file)-len(ext)]
 }
 
-//
-//func fmtDuration(d time.Duration) string {
-//	ms := d.Milliseconds() % 1000
-//	s := int(d.Seconds()) % 60
-//	m := int(d.Minutes()) % 60
-//	h := int(d.Hours())
-//	return fmt.Sprintf("%02d:%02d:%02d.%03d", h, m, s, ms)
-//}
-//
-//func fmtBitrate(bitRate string) int64 {
-//	if v, err := strconv.ParseInt(bitRate, 10, 64); err == nil {
-//		if v > 8 {
-//			return v / 8
-//		}
-//		return v
+//func GetParentID(objectID string) string {
+//	if pos := strings.LastIndex(objectID, "$"); pos != -1 {
+//		return objectID[0:pos]
 //	}
-//	return 0
+//	if objectID == "0" {
+//		return "-1"
+//	}
+//	return "0"
 //}
+
+func FmtDuration(d time.Duration) string {
+	ms := d.Milliseconds() % 1000
+	s := int(d.Seconds()) % 60
+	m := int(d.Minutes()) % 60
+	h := int(d.Hours())
+	return fmt.Sprintf("%02d:%02d:%02d.%03d", h, m, s, ms)
+}
+func FmtBitrate(bitRate string) uint {
+	if v, err := strconv.ParseUint(bitRate, 10, 64); err == nil {
+		if v > 8 {
+			return uint(v / 8)
+		}
+		return uint(v)
+	}
+	return 0
+}
+
 //func fmtSampleRate(sampleRate string) int64 {
 //	v, _ := strconv.ParseInt(sampleRate, 10, 64)
 //	return v

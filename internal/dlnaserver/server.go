@@ -184,6 +184,7 @@ func (s *Server) HookFunc(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// run without full debug
+		w.Header().Set("Ext", "")
 		w.Header().Set("Server", s.ServerHeader)
 		next.ServeHTTP(w, r)
 	}

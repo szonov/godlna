@@ -187,7 +187,7 @@ func (s *Scanner) checkVideo(fullPath string, info fs.FileInfo) (err error) {
 		"OBJECT_ID":      getNewObjectId(parentID),
 		"PARENT_ID":      parentID,
 		"CLASS":          ClassVideo,
-		"TITLE":          nameWithoutExt(info.Name()),
+		"TITLE":          NameWithoutExt(info.Name()),
 		"PATH":           fullPath,
 		"TIMESTAMP":      info.ModTime().Unix(),
 		"UPDATE_ID":      s.newUpdateID,

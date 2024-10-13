@@ -15,14 +15,24 @@ import (
 )
 
 func main() {
+
 	logger.InitLogger()
+
+	// ------------------------------------------------------------
+	// 1. initialize backend
+	// ------------------------------------------------------------
 
 	if err := backend.Init("storage/media", "storage/cache"); err != nil {
 		slog.Error("PANIC", "err", err)
 		return
 	}
+
 	scanner := backend.NewScanner()
 	scanner.Scan()
+
+	// ------------------------------------------------------------
+	// 2. setup device
+	// ------------------------------------------------------------
 
 	v4face := network.DefaultV4Interface()
 	listenAddress := v4face.ListenAddress(55975)
@@ -59,14 +69,27 @@ func main() {
 		Location: "/rootDesc.xml",
 	}
 
+	// ------------------------------------------------------------
+	// 3. setup services and handlers
+	// ------------------------------------------------------------
+
+	if err := contentdirectory.Init(); err != nil {
+		slog.Error("PANIC: content directory init", "err", err)
+		return
+	}
+
 	deviceController := deviceinfo.NewController(deviceDescription)
-	cdsController := contentdirectory.NewController()
+
+	// ------------------------------------------------------------
+	// 4. setup dlna http server
+	// ------------------------------------------------------------
 
 	dlnaServer := &dlnaserver.Server{
 		ListenAddress:     listenAddress,
 		SsdpInterface:     v4face.Interface,
 		DeviceDescription: deviceDescription,
-		Debug:             dlnaserver.DebugFull,
+		Debug:             dlnaserver.DebugLight,
+		//Debug:             dlnaserver.DebugFull,
 		BeforeHttpStart: func(s *dlnaserver.Server, mux *http.ServeMux, desc *device.Description) {
 
 			mux.HandleFunc("/", s.HookFunc(deviceController.HandlePresentationURL))
@@ -74,13 +97,18 @@ func main() {
 
 			mux.HandleFunc("/icons/", s.HookFunc(deviceController.HandleIcons))
 
-			mux.HandleFunc("/ContentDirectory.xml", s.HookFunc(cdsController.HandleSCPDURL))
-			mux.HandleFunc("/ctl/{profile}/ContentDirectory", s.HookFunc(cdsController.HandleControlURL))
-			mux.HandleFunc("/evt/{profile}/ContentDirectory", s.HookFunc(cdsController.HandleEventSubURL))
-			mux.HandleFunc("/thumbs/{profile}/{image}", s.HookFunc(cdsController.HandleThumbnailURL))
+			mux.HandleFunc("/ContentDirectory.xml", s.HookFunc(contentdirectory.HandleSCPDURL))
+			mux.HandleFunc("/ctl/{profile}/ContentDirectory", s.HookFunc(contentdirectory.HandleControlURL))
+			mux.HandleFunc("/evt/{profile}/ContentDirectory", s.HookFunc(contentdirectory.HandleEventSubURL))
+			mux.HandleFunc("/thumbs/{profile}/{image}", s.HookFunc(contentdirectory.HandleThumbnailURL))
+			mux.HandleFunc("/video/{profile}/{video}", s.HookFunc(contentdirectory.HandleVideoURL))
 
 		},
 	}
+
+	// ------------------------------------------------------------
+	// 5. start
+	// ------------------------------------------------------------
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)

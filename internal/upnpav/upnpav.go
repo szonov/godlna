@@ -2,7 +2,6 @@ package upnpav
 
 import (
 	"encoding/xml"
-	"time"
 )
 
 const (
@@ -11,13 +10,15 @@ const (
 
 // Resource description
 type Resource struct {
-	XMLName      xml.Name `xml:"res"`
-	ProtocolInfo string   `xml:"protocolInfo,attr"`
-	URL          string   `xml:",chardata"`
-	Size         uint64   `xml:"size,attr,omitempty"`
-	Bitrate      uint     `xml:"bitrate,attr,omitempty"`
-	Duration     string   `xml:"duration,attr,omitempty"`
-	Resolution   string   `xml:"resolution,attr,omitempty"`
+	XMLName         xml.Name `xml:"res"`
+	ProtocolInfo    string   `xml:"protocolInfo,attr"`
+	URL             string   `xml:",chardata"`
+	Size            uint64   `xml:"size,attr,omitempty"`
+	Bitrate         uint     `xml:"bitrate,attr,omitempty"`
+	Duration        string   `xml:"duration,attr,omitempty"`
+	Resolution      string   `xml:"resolution,attr,omitempty"`
+	AudioChannels   string   `xml:"nrAudioChannels,attr,omitempty"`
+	SampleFrequency string   `xml:"sampleFrequency,attr,omitempty"`
 }
 
 // Container description
@@ -35,29 +36,19 @@ type Item struct {
 	InnerXML string `xml:",innerxml"`
 }
 
+type AlbumArtURI struct {
+	Profile string `xml:"dlna:profileID,attr,omitempty"`
+	Value   string `xml:",chardata"`
+}
+
 // Object description
 type Object struct {
-	ID          string    `xml:"id,attr"`
-	ParentID    string    `xml:"parentID,attr"`
-	Restricted  int       `xml:"restricted,attr"` // indicates whether the object is modifiable
-	Title       string    `xml:"dc:title"`
-	Class       string    `xml:"upnp:class"`
-	Icon        string    `xml:"upnp:icon,omitempty"`
-	Date        Timestamp `xml:"dc:date"`
-	Artist      string    `xml:"upnp:artist,omitempty"`
-	Album       string    `xml:"upnp:album,omitempty"`
-	Genre       string    `xml:"upnp:genre,omitempty"`
-	AlbumArtURI string    `xml:"upnp:albumArtURI,omitempty"`
-	Searchable  int       `xml:"searchable,attr"`
-	SearchXML   string    `xml:",innerxml"`
-}
-
-// Timestamp wraps time.Time for formatting purposes
-type Timestamp struct {
-	time.Time
-}
-
-// MarshalXML formats the Timestamp per DIDL-Lite spec
-func (t Timestamp) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-	return e.EncodeElement(t.Format("2006-01-02"), start)
+	ID          string       `xml:"id,attr"`
+	ParentID    string       `xml:"parentID,attr"`
+	Restricted  int          `xml:"restricted,attr"`
+	Title       string       `xml:"dc:title"`
+	Class       string       `xml:"upnp:class"`
+	Icon        string       `xml:"upnp:icon,omitempty"`
+	Date        string       `xml:"dc:date,omitempty"`
+	AlbumArtURI *AlbumArtURI `xml:"upnp:albumArtURI,omitempty"`
 }

@@ -133,17 +133,25 @@ func (s *Server) HookFunc(next http.HandlerFunc) http.HandlerFunc {
 				slog.String("remote", r.RemoteAddr),
 			)
 		}
+		reqDump, _ := httputil.DumpRequest(r, true)
 
+		slog.Info("Request",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("remote", r.RemoteAddr),
+			slog.String("len", strconv.Itoa(len(reqDump))),
+			slog.String("body", "\n"+string(reqDump)),
+		)
 		if s.Debug == DebugFull {
-			reqDump, _ := httputil.DumpRequest(r, true)
-
-			slog.Info("Request",
-				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
-				slog.String("remote", r.RemoteAddr),
-				slog.String("len", strconv.Itoa(len(reqDump))),
-				slog.String("body", "\n"+string(reqDump)),
-			)
+			//reqDump, _ := httputil.DumpRequest(r, true)
+			//
+			//slog.Info("Request",
+			//	slog.String("method", r.Method),
+			//	slog.String("path", r.URL.Path),
+			//	slog.String("remote", r.RemoteAddr),
+			//	slog.String("len", strconv.Itoa(len(reqDump))),
+			//	slog.String("body", "\n"+string(reqDump)),
+			//)
 
 			wt := httptest.NewRecorder()
 

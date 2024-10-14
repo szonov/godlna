@@ -42,6 +42,15 @@ func HandleVideoURL(w http.ResponseWriter, r *http.Request) {
 		_ = file.Close()
 	}(file)
 
-	w.Header().Set("Content-Type", "video/x-matroska")
+	if r.Header.Get("getcontentFeatures.dlna.org") == "1" {
+
+		w.Header().Set("EXT", "")
+		w.Header().Set("realTimeInfo.dlna.org", "DLNA.ORG_TLAG=*")
+		w.Header().Set("transferMode.dlna.org", "Streaming")
+		w.Header().Set("contentFeatures.dlna.org", "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000")
+	}
+
+	//w.Header().Set("Content-Type", "video/x-matroska")
+	w.Header().Set("Content-Type", "video/x-msvideo")
 	http.ServeContent(w, r, video, statInfo.ModTime(), file)
 }

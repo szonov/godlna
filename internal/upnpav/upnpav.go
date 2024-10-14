@@ -31,9 +31,9 @@ type Container struct {
 // Item description
 type Item struct {
 	Object
-	XMLName  xml.Name `xml:"item"`
-	Res      []Resource
-	InnerXML string `xml:",innerxml"`
+	XMLName xml.Name `xml:"item"`
+	Res     []Resource
+	DcmInfo string `xml:"sec:dcmInfo,omitempty"`
 }
 
 type AlbumArtURI struct {

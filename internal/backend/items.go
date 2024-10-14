@@ -19,6 +19,7 @@ type (
 		MetaData      string
 		UpdateID      uint64
 		ChildrenCount uint64
+		Bookmark      uint64
 	}
 
 	ObjectFilter struct {
@@ -76,14 +77,9 @@ func GetObjects(filter ObjectFilter) ([]*Object, uint64) {
 		limit = uint64(filter.Limit)
 	}
 
-	rows, err = builder.Columns("OBJECT_ID", "PARENT_ID", "CLASS", "TITLE", "TIMESTAMP", "META_DATA", "CHILDREN_COUNT").
+	rows, err = builder.Columns("OBJECT_ID", "PARENT_ID", "CLASS", "TITLE", "TIMESTAMP", "META_DATA", "CHILDREN_COUNT", "BOOKMARK").
 		OrderBy("CLASS", "TITLE").Limit(limit).Offset(offset).
 		RunWith(DB).Query()
-
-	a, b, c := builder.RemoveColumns().OrderBy("CLASS", "TITLE").Limit(limit).Offset(offset).
-		Columns("OBJECT_ID", "PARENT_ID", "CLASS", "TITLE", "TIMESTAMP", "META_DATA", "CHILDREN_COUNT").ToSql()
-
-	slog.Debug("SQL", slog.Any("a", a), slog.Any("b", b), slog.Any("c", c))
 
 	if err != nil {
 		slog.Error("select OBJECTS", "err", err.Error())
@@ -103,7 +99,7 @@ func GetObjects(filter ObjectFilter) ([]*Object, uint64) {
 		}
 		var tms *int64
 		var meta *string
-		err = rows.Scan(&item.ObjectID, &item.ParentID, &item.Class, &item.Title, &tms, &meta, &item.ChildrenCount)
+		err = rows.Scan(&item.ObjectID, &item.ParentID, &item.Class, &item.Title, &tms, &meta, &item.ChildrenCount, &item.Bookmark)
 		if tms != nil {
 			item.Timestamp = *tms
 		}
@@ -128,4 +124,13 @@ func GetObjectPath(objectID string) string {
 		return *path
 	}
 	return ""
+}
+
+func SetBookmark(objectID string, posSecond uint64) {
+	_, err := sq.Update("OBJECTS").Set("BOOKMARK", posSecond).Where(sq.Eq{"OBJECT_ID": objectID}).
+		RunWith(DB).Exec()
+
+	if err != nil {
+		slog.Error("set bookmark", "err", err.Error())
+	}
 }

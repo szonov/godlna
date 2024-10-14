@@ -43,9 +43,9 @@ func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Reques
 
 	// I need only video, don't want to make extra click on TV to switch to Video folder
 	// but for the future (and the second TV) the ability to change the behavior remains
-	if profile.UseVideoAsRoot() && in.ObjectID == "0" {
-		in.ObjectID = backend.VideoID
-	}
+	//if profile.UseVideoAsRoot() && in.ObjectID == "0" {
+	//	in.ObjectID = backend.VideoID
+	//}
 
 	if in.BrowseFlag == "BrowseDirectChildren" {
 		filter = backend.ObjectFilter{

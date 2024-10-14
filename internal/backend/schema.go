@@ -37,6 +37,7 @@ func createSchema() (err error) {
 			PATH TEXT DEFAULT NULL,
 			META_DATA TEXT,
 			UPDATE_ID INTEGER,
+			BOOKMARK INTEGER default 0,
 			TO_DELETE INTEGER DEFAULT 0
 		)`)
 

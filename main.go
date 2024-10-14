@@ -89,7 +89,7 @@ func main() {
 		SsdpInterface:     v4face.Interface,
 		DeviceDescription: deviceDescription,
 		Debug:             dlnaserver.DebugLight,
-		//Debug:             dlnaserver.DebugFull,
+		//Debug: dlnaserver.DebugFull,
 		BeforeHttpStart: func(s *dlnaserver.Server, mux *http.ServeMux, desc *device.Description) {
 
 			mux.HandleFunc("/", s.HookFunc(deviceController.HandlePresentationURL))

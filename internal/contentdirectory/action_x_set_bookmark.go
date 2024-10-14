@@ -1,8 +1,10 @@
 package contentdirectory
 
 import (
+	"fmt"
+	"github.com/szonov/godlna/internal/backend"
+	"github.com/szonov/godlna/internal/client"
 	"github.com/szonov/godlna/internal/soap"
-	"log/slog"
 	"net/http"
 )
 
@@ -10,7 +12,7 @@ type argInSetBookmark struct {
 	CategoryType string
 	RID          string
 	ObjectID     string
-	PosSecond    string
+	PosSecond    uint64
 }
 
 func actionSetBookmark(soapAction *soap.Action, w http.ResponseWriter, r *http.Request) {
@@ -20,9 +22,13 @@ func actionSetBookmark(soapAction *soap.Action, w http.ResponseWriter, r *http.R
 		soap.SendError(err, w)
 		return
 	}
+	profile := client.GetProfileByRequest(r)
 
-	// todo: set bookmark
-	slog.Debug("actionSetBookmark", slog.Any("in", in))
+	fmt.Printf("argInSetBookmark: %+v\n", in)
+	//slog.Debug("actionSetBookmark", slog.Any("in", in))
+
+	backend.SetBookmark(in.ObjectID, profile.BookmarkStoreValue(in.PosSecond))
+	//// todo: set bookmark
 
 	soap.SendActionResponse(soapAction, nil, w)
 }

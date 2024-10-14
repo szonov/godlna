@@ -17,15 +17,15 @@ func transformObject(item *backend.Object, profile *client.Profile) (ret interfa
 	objectID := item.ObjectID
 	parentID := item.ParentID
 
-	if profile.UseVideoAsRoot() {
-		switch backend.VideoID {
-		case objectID:
-			objectID = "0"
-			parentID = "-1"
-		case parentID:
-			parentID = "0"
-		}
-	}
+	//if profile.UseVideoAsRoot() {
+	//	switch backend.VideoID {
+	//	case objectID:
+	//		objectID = "0"
+	//		parentID = "-1"
+	//	case parentID:
+	//		parentID = "0"
+	//	}
+	//}
 
 	obj := upnpav.Object{
 		ID:         objectID,
@@ -53,11 +53,12 @@ func transformObject(item *backend.Object, profile *client.Profile) (ret interfa
 		err = fmt.Errorf("no meta for '%s'", item.ObjectID)
 		return
 	}
+	// test
 
 	obj.Icon = "http://" + profile.Host + "/thumbs/" + profile.Name + "/" + item.ObjectID + ".jpg"
 	obj.AlbumArtURI = &upnpav.AlbumArtURI{
 		Value:   obj.Icon,
-		Profile: "JPEG_SM",
+		Profile: "JPEG_TN",
 	}
 
 	res := make([]upnpav.Resource, 0)
@@ -71,7 +72,8 @@ func transformObject(item *backend.Object, profile *client.Profile) (ret interfa
 	res = append(res, upnpav.Resource{
 		URL: "http://" + profile.Host + "/video/" + profile.Name + "/" + item.ObjectID + filepath.Ext(item.Path),
 		//ProtocolInfo: "http-get:*:video/avi:DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000",
-		ProtocolInfo:    "http-get:*:video/x-mkv:DLNA.ORG_PN=MATROSKA;DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=21D00000000000000000000000000000",
+		ProtocolInfo: "http-get:*:video/x-msvideo:DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000",
+		//ProtocolInfo:    "http-get:*:video/x-mkv:DLNA.ORG_PN=MATROSKA;DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=21D00000000000000000000000000000",
 		Bitrate:         backend.FmtBitrate(meta.Format.BitRate),
 		SampleFrequency: astream.SampleRate,
 		Duration:        backend.FmtDuration(meta.Format.Duration()),
@@ -83,12 +85,18 @@ func transformObject(item *backend.Object, profile *client.Profile) (ret interfa
 	// icon
 	res = append(res, upnpav.Resource{
 		URL:          obj.Icon,
-		ProtocolInfo: "http-get:*:image/jpeg:DLNA.ORG_PN=JPEG_SM;DLNA.ORG_FLAGS=00f00000000000000000000000000000",
+		ProtocolInfo: "http-get:*:image/jpeg:DLNA.ORG_PN=JPEG_TN;DLNA.ORG_FLAGS=00f00000000000000000000000000000",
 	})
 
+	dcmInfo := ""
+	if item.Bookmark > 0 {
+		dcmInfo = fmt.Sprintf("BM=%d", profile.BookmarkResponseValue(item.Bookmark))
+	}
+
 	ret = upnpav.Item{
-		Object: obj,
-		Res:    res,
+		Object:  obj,
+		DcmInfo: dcmInfo,
+		Res:     res,
 	}
 	return
 }

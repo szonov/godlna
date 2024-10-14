@@ -21,11 +21,26 @@ func (p *Profile) DeviceDescriptionXML(deviceDescTemplate string) string {
 }
 
 func (p *Profile) UseVideoAsRoot() bool {
-	return p.Name != Samsung4
+	return false
+	//return p.Name != Samsung4
 }
 
 func (p *Profile) UseSquareThumbnails() bool {
 	return p.Name != Samsung4
+}
+
+func (p *Profile) BookmarkStoreValue(reqValue uint64) uint64 {
+	if p.Name == Samsung5 {
+		return reqValue / 1000
+	}
+	return reqValue
+}
+
+func (p *Profile) BookmarkResponseValue(dbValue uint64) uint64 {
+	if p.Name == Samsung5 {
+		return dbValue * 1000
+	}
+	return dbValue
 }
 
 func GetProfileByRequest(r *http.Request) *Profile {

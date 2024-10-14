@@ -20,11 +20,6 @@ func (p *Profile) DeviceDescriptionXML(deviceDescTemplate string) string {
 	return strings.Replace(deviceDescTemplate, "{profile}", p.Name, -1)
 }
 
-func (p *Profile) UseVideoAsRoot() bool {
-	return false
-	//return p.Name != Samsung4
-}
-
 func (p *Profile) UseSquareThumbnails() bool {
 	return p.Name != Samsung4
 }

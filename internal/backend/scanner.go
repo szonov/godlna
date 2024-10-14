@@ -51,7 +51,7 @@ func (s *Scanner) Scan() {
 	slog.Debug("Complete scan media dir", "UPDATE_ID", s.newUpdateID)
 }
 func (s *Scanner) beforeScan() (err error) {
-	_, err = DB.Exec(`UPDATE OBJECTS SET TO_DELETE = 1 WHERE PARENT_ID <> '-1' AND PARENT_ID <> '0'`)
+	_, err = DB.Exec(`UPDATE OBJECTS SET TO_DELETE = 1 WHERE PATH IS NOT NULL`)
 	if err != nil {
 		return err
 	}
@@ -135,9 +135,9 @@ func (s *Scanner) checkFolder(fullPath string, info fs.FileInfo) (err error) {
 		"TO_DELETE": 0,
 	}).RunWith(DB).Exec()
 
-	if err != nil {
-		query := `UPDATE OBJECTS SET CHILDREN_COUNT = CHILDREN_COUNT + 1  where OBJECT_ID = ?`
-		_, err = DB.Exec(query, parentID)
+	if err == nil {
+		query := `UPDATE OBJECTS SET CHILDREN_COUNT = CHILDREN_COUNT + 1, UPDATE_ID = ?  where OBJECT_ID = ?`
+		_, err = DB.Exec(query, s.newUpdateID, parentID)
 	}
 
 	return
@@ -148,10 +148,13 @@ func (s *Scanner) checkVideo(fullPath string, info fs.FileInfo) (err error) {
 
 	var res sql.Result
 	var affectedCount int64
-	res, err = sq.Update("OBJECTS").
-		SetMap(map[string]any{"TO_DELETE": 0}).
-		Where(sq.Eq{"PATH": fullPath, "CLASS": ClassVideo}).
-		RunWith(DB).Exec()
+	query := `UPDATE OBJECTS SET TO_DELETE = 0  where PATH = ? AND CLASS = ?`
+	res, err = DB.Exec(query, fullPath, ClassVideo)
+
+	//res, err = sq.Update("OBJECTS").
+	//	SetMap(map[string]any{"TO_DELETE": 0}).
+	//	Where(sq.Eq{"PATH": fullPath, "CLASS": ClassVideo}).
+	//	RunWith(DB).Exec()
 
 	if err != nil {
 		return err
@@ -198,7 +201,7 @@ func (s *Scanner) checkVideo(fullPath string, info fs.FileInfo) (err error) {
 
 	if err == nil {
 		// mark container as updated and increment counter of children
-		query := `UPDATE OBJECTS SET CHILDREN_COUNT = CHILDREN_COUNT + 1, UPDATE_ID = ? where OBJECT_ID = ?`
+		query = `UPDATE OBJECTS SET CHILDREN_COUNT = CHILDREN_COUNT + 1, UPDATE_ID = ? where OBJECT_ID = ?`
 		_, err = DB.Exec(query, s.newUpdateID, parentID)
 	}
 
@@ -255,7 +258,7 @@ func getNewObjectId(parentID string) string {
 func findParentId(fullPath string) (parentID string, err error) {
 	folder := filepath.Dir(fullPath)
 	if folder == MediaDir {
-		parentID = VideoID
+		parentID = "0"
 		return
 	}
 	row := sq.Select("OBJECT_ID").From("OBJECTS").Where(sq.Eq{"PATH": folder, "CLASS": ClassFolder}).

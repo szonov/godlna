@@ -5,13 +5,8 @@ import (
 	"net/http"
 )
 
-type argOutGetSortCapabilities struct {
-	SortCaps string
-}
-
 func actionGetSortCapabilities(soapAction *soap.Action, w http.ResponseWriter, r *http.Request) {
-	out := &argOutGetSortCapabilities{
-		SortCaps: "",
-	}
-	soap.SendActionResponse(soapAction, out, w)
+
+	soap.SendActionResponse(soapAction, "<SortCaps></SortCaps>", w)
+
 }

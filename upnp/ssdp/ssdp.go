@@ -105,7 +105,7 @@ func (s *Server) ListenAndServe() error {
 		return err
 	}
 
-	slog.Debug("starting ssdp server",
+	slog.Debug("starting SSDP server",
 		slog.String("address", MulticastAddrPort),
 		slog.String("if", s.Interface.Name),
 	)
@@ -135,7 +135,7 @@ func (s *Server) ListenAndServe() error {
 }
 
 func (s *Server) Shutdown() {
-	slog.Debug("stopping ssdp server",
+	slog.Debug("stopping SSDP server",
 		slog.String("address", MulticastAddrPort),
 		slog.String("if", s.Interface.Name),
 	)

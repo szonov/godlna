@@ -21,61 +21,49 @@ type argInBrowse struct {
 
 type argOutBrowse struct {
 	Result         *soap.DIDLLite
-	NumberReturned uint64
+	NumberReturned int
 	TotalMatches   uint64
 	UpdateID       uint64
 }
 
 func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Request) {
 
-	// input
 	in := &argInBrowse{}
+	out := &argOutBrowse{}
+
 	if err := soap.UnmarshalEnvelopeRequest(r.Body, in); err != nil {
 		soap.SendError(err, w)
 		return
 	}
 
-	// output
-	out := &argOutBrowse{}
-
 	profile := client.GetProfileByRequest(r)
-	var filter backend.ObjectFilter
+	var objects []*backend.Object
 
-	// I need only video, don't want to make extra click on TV to switch to Video folder
-	// but for the future (and the second TV) the ability to change the behavior remains
-	//if profile.UseVideoAsRoot() && in.ObjectID == "0" {
-	//	in.ObjectID = backend.VideoID
-	//}
-
-	if in.BrowseFlag == "BrowseDirectChildren" {
-		filter = backend.ObjectFilter{
+	switch in.BrowseFlag {
+	case "BrowseDirectChildren":
+		objects, out.TotalMatches = backend.GetObjects(backend.ObjectFilter{
 			ParentID: in.ObjectID,
 			Offset:   in.StartingIndex,
 			Limit:    in.RequestedCount,
-		}
-	} else if in.BrowseFlag == "BrowseMetadata" {
-		filter = backend.ObjectFilter{
+		})
+	case "BrowseMetadata":
+		objects, out.TotalMatches = backend.GetObjects(backend.ObjectFilter{
 			ObjectID: in.ObjectID,
 			Offset:   0,
 			Limit:    1,
+		})
+		if out.TotalMatches == 0 {
+			soap.SendUPnPError(upnpav.NoSuchObjectErrorCode, "no such object", w, http.StatusBadRequest)
+			return
 		}
-	} else {
+	default:
 		err := fmt.Errorf("invalid BrowseFlag: %s", in.BrowseFlag)
 		soap.SendUPnPError(soap.ArgumentValueInvalidErrorCode, err.Error(), w)
 		return
 	}
 
-	var objects []*backend.Object
-
-	objects, out.TotalMatches = backend.GetObjects(filter)
-	out.NumberReturned = uint64(len(objects))
+	out.NumberReturned = len(objects)
 	out.UpdateID = serviceState.GetUint64("SystemUpdateID")
-
-	if in.BrowseFlag == "BrowseMetadata" && out.TotalMatches == 0 {
-		soap.SendUPnPError(upnpav.NoSuchObjectErrorCode, "no such object", w, http.StatusBadRequest)
-		return
-	}
-
 	out.Result = &soap.DIDLLite{
 		Debug: strings.Contains(r.UserAgent(), "DIDLDebug"),
 	}

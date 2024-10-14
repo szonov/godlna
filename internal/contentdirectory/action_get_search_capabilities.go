@@ -5,13 +5,8 @@ import (
 	"net/http"
 )
 
-type argOutGetSearchCapabilities struct {
-	SearchCaps string
-}
-
 func actionGetSearchCapabilities(soapAction *soap.Action, w http.ResponseWriter, r *http.Request) {
-	out := &argOutGetSearchCapabilities{
-		SearchCaps: "",
-	}
-	soap.SendActionResponse(soapAction, out, w)
+
+	soap.SendActionResponse(soapAction, "<SearchCaps></SearchCaps>", w)
+
 }

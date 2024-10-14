@@ -1,23 +1,23 @@
 package device
 
 import (
+	"crypto/md5"
 	"encoding/xml"
+	"fmt"
 	"strings"
 )
 
 const (
-	DeviceXMLNamespace     = "urn:schemas-upnp-org:device-1-0"
-	DlnaDeviceXMLNamespace = "urn:schemas-dlna-org:device-1-0"
-	DlnaSecXMLNamespace    = "http://www.sec.co.kr/dlna"
+	XMLNamespace = "urn:schemas-upnp-org:device-1-0"
 )
+
+// reference https://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.0-20080424.pdf
+// on the page 26 there is XML listing and then detailed description
 
 var Version = SpecVersion{
 	Major: 1,
 	Minor: 0,
 }
-
-// reference https://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.0-20080424.pdf
-// on the page 26 there is XML listing and then detailed description
 
 type SpecVersion struct {
 	// Required. Major version of the UPnP Device Architecture. Must be 1.
@@ -57,11 +57,15 @@ type Service struct {
 	EventSubURL string `xml:"eventSubURL"`
 }
 
-type VendorXML struct {
+// VendorXMLTag gives possibility to add additional (vendor depended) tags to device
+type VendorXMLTag struct {
 	XMLName  xml.Name
 	XMLAttrs []xml.Attr
 	Value    any `xml:",innerxml"`
 }
+
+// VendorXML gives possibility to add additional (vendor depended) tags to device
+type VendorXML []VendorXMLTag
 
 // MarshalXML generate XML output for VendorXML
 // Example:
@@ -73,7 +77,7 @@ type VendorXML struct {
 //
 // will produce: <dlna:X_DLNADOC>DMS-1.50</dlna:X_DLNADOC>
 // and to <root> will be added xmlns:dlna="urn:schemas-dlna-org:device-1-0"
-func (v VendorXML) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+func (v VendorXMLTag) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	start.Name = v.XMLName
 	start.Attr = append(start.Attr, v.XMLAttrs...)
 	// namespace added to Description root element, cut it off from Vendor's root element
@@ -83,11 +87,23 @@ func (v VendorXML) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.EncodeElement(v.Value, start)
 }
 
-func BuildVendorXML(tag string, value string, space string) VendorXML {
-	return VendorXML{
-		XMLName: xml.Name{Local: tag, Space: space},
-		Value:   value,
+func (v VendorXML) Add(prefix string, namespace string, tags ...[2]string) VendorXML {
+	ret := v
+	for _, t := range tags {
+		ret = append(ret, VendorXMLTag{
+			XMLName: xml.Name{Local: fmt.Sprintf("%s:%s", prefix, t[0]), Space: namespace},
+			Value:   t[1],
+		})
 	}
+	return ret
+}
+
+func NewVendorXML() VendorXML {
+	return make(VendorXML, 0)
+}
+
+func VendorValue(name, value string) [2]string {
+	return [2]string{name, value}
 }
 
 type Device struct {
@@ -120,19 +136,7 @@ type Device struct {
 	// PresentationURL Recommended. URL to presentation for device. May be relative to base URL. Single URL.
 	PresentationURL string `xml:"presentationURL,omitempty"`
 	// VendorXML Provide possibility to extend device Description.
-	VendorXML []VendorXML
-}
-
-func (d *Device) AppendService(service *Service) {
-	d.ServiceList = append(d.ServiceList, service)
-}
-
-func (d *Device) AppendVendorXML(vendorXML VendorXML) {
-	d.VendorXML = append(d.VendorXML, vendorXML)
-}
-
-func (d *Device) AppendIcon(icon Icon) {
-	d.IconList = append(d.IconList, icon)
+	VendorXML VendorXML
 }
 
 type Description struct {
@@ -153,7 +157,7 @@ func (r *Description) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 	var err error
 
-	start.Name = xml.Name{Local: "root", Space: DeviceXMLNamespace}
+	start.Name = xml.Name{Local: "root", Space: XMLNamespace}
 
 	// collect unique vendor's namespaces and add them to root element
 	spaces := map[string]string{}
@@ -185,7 +189,9 @@ func (r *Description) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	}
 	return e.EncodeToken(xml.EndElement{Name: start.Name})
 }
-func (r *Description) With(f func(desc *Description)) *Description {
-	f(r)
-	return r
+
+// NewUDN is a helper to create new UDN for device
+func NewUDN(unique string) string {
+	hash := md5.Sum([]byte(unique))
+	return fmt.Sprintf("uuid:%x-%x-%x-%x-%x", hash[:4], hash[4:6], hash[6:8], hash[8:10], hash[10:16])
 }

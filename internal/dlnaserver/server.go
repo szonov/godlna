@@ -19,8 +19,6 @@ import (
 )
 
 const (
-	DeviceType = "urn:schemas-upnp-org:device:MediaServer:1"
-
 	DebugNone = iota
 	DebugLight
 	DebugFull
@@ -31,7 +29,7 @@ type (
 		// ListenAddress Format ip:port
 		ListenAddress string
 
-		// Description of device, by default generated automatically
+		// Description of device, required only if defined SsdpInterface
 		DeviceDescription *device.Description
 
 		// Optional: Default is "[runtime.GOOS]/[runtime.Version()] UPnP/1.0 GoUPnP/1.0"
@@ -46,8 +44,7 @@ type (
 		BeforeHttpStart func(*Server, *http.ServeMux, *device.Description)
 
 		// BeforeSsdpStart runs before ssdp server start,
-		// place to modify ssdp parameters (or even delete ssdp server or set new)
-		// runs ony if SsdpInterface is defined
+		// place to modify ssdp parameters, executed only if SsdpInterface is defined
 		BeforeSsdpStart func(*ssdp.Server, *device.Description)
 
 		Debug int
@@ -78,16 +75,17 @@ func (s *Server) ListenAndServe() error {
 	}
 
 	if s.ServerHeader == "" {
-		s.ServerHeader = fmt.Sprintf("%s/%s %s %s", runtime.GOOS, runtime.Version(), "UPnP/1.0", "GoUPnP/1.0")
+		s.ServerHeader = DefaultServerHeader()
 	}
 
-	// make default DeviceDescription if not defined
-	if s.DeviceDescription == nil {
-		s.DeviceDescription = device.DefaultDeviceDescription()
+	if s.DeviceDescription == nil && s.SsdpInterface != nil {
+		err = fmt.Errorf("DeviceDescription required for creating SSDP server")
+		slog.Error(err.Error())
+		return err
 	}
 
 	if s.SsdpInterface != nil {
-		s.makeDefaultSsdpServer()
+		s.makeSsdpServer()
 	}
 
 	mux := http.NewServeMux()
@@ -108,7 +106,7 @@ func (s *Server) ListenAndServe() error {
 		s.ssdpServer.Start()
 	}
 
-	slog.Info("starting UPnP server", slog.String("address", s.ListenAddress))
+	slog.Info("starting HTTP server", slog.String("address", s.ListenAddress))
 
 	if err = s.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		slog.Error(err.Error())
@@ -203,7 +201,7 @@ func (s *Server) Shutdown() {
 		s.ssdpServer.Shutdown()
 	}
 
-	slog.Info("stopping UPnP server", slog.String("address", s.ListenAddress))
+	slog.Info("stopping HTTP server", slog.String("address", s.ListenAddress))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -212,7 +210,7 @@ func (s *Server) Shutdown() {
 	}
 }
 
-func (s *Server) makeDefaultSsdpServer() {
+func (s *Server) makeSsdpServer() {
 
 	services := make([]string, 0)
 	for _, serv := range s.DeviceDescription.Device.ServiceList {
@@ -227,4 +225,8 @@ func (s *Server) makeDefaultSsdpServer() {
 		ServiceList:  services,
 		Interface:    s.SsdpInterface,
 	}
+}
+
+func DefaultServerHeader() string {
+	return fmt.Sprintf("%s/%s %s %s", runtime.GOOS, runtime.Version(), "UPnP/1.0", "GoUPnP/1.0")
 }

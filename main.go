@@ -36,13 +36,15 @@ func main() {
 
 	v4face := network.DefaultV4Interface()
 	listenAddress := v4face.ListenAddress(55975)
+	friendlyName := "SZ"
+	serverHeader := dlnaserver.DefaultServerHeader()
 
 	deviceDescription := &device.Description{
 		SpecVersion: device.Version,
 		Device: &device.Device{
-			DeviceType:   dlnaserver.DeviceType,
-			FriendlyName: "SZ",
-			UDN:          device.NewUDN(device.DefaultFriendlyName()),
+			DeviceType:   "urn:schemas-upnp-org:device:MediaServer:1",
+			FriendlyName: friendlyName,
+			UDN:          device.NewUDN(friendlyName + "-01"),
 			Manufacturer: "Home",
 			ModelName:    "DLNA Server",
 			IconList: []device.Icon{
@@ -61,10 +63,14 @@ func main() {
 				},
 			},
 			PresentationURL: "http://" + listenAddress + "/",
-			VendorXML: []device.VendorXML{
-				device.BuildVendorXML("dlna:X_DLNADOC", "DMS-1.50", "urn:schemas-dlna-org:device-1-0"),
-				device.BuildVendorXML("sec:X_ProductCap", "smi,DCM10,getMediaInfo.sec,getCaptionInfo.sec", "http://www.sec.co.kr/dlna"),
-			},
+			VendorXML: device.NewVendorXML().
+				Add("dlna", "urn:schemas-dlna-org:device-1-0",
+					device.VendorValue("X_DLNADOC", "DMS-1.50"),
+				).
+				Add("sec", "http://www.sec.co.kr/dlna",
+					device.VendorValue("ProductCap", "smi,DCM10,getMediaInfo.sec,getCaptionInfo.sec"),
+					device.VendorValue("X_ProductCap", "smi,DCM10,getMediaInfo.sec,getCaptionInfo.sec"),
+				),
 		},
 		Location: "/rootDesc.xml",
 	}
@@ -88,6 +94,7 @@ func main() {
 		ListenAddress:     listenAddress,
 		SsdpInterface:     v4face.Interface,
 		DeviceDescription: deviceDescription,
+		ServerHeader:      serverHeader,
 		Debug:             dlnaserver.DebugLight,
 		//Debug: dlnaserver.DebugFull,
 		BeforeHttpStart: func(s *dlnaserver.Server, mux *http.ServeMux, desc *device.Description) {

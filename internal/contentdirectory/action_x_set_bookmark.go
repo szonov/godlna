@@ -22,13 +22,11 @@ func actionSetBookmark(soapAction *soap.Action, w http.ResponseWriter, r *http.R
 		soap.SendError(err, w)
 		return
 	}
-	profile := client.GetProfileByRequest(r)
 
+	profile := client.GetProfileByRequest(r)
 	fmt.Printf("argInSetBookmark: %+v\n", in)
-	//slog.Debug("actionSetBookmark", slog.Any("in", in))
 
 	backend.SetBookmark(in.ObjectID, profile.BookmarkStoreValue(in.PosSecond))
-	//// todo: set bookmark
 
 	soap.SendActionResponse(soapAction, nil, w)
 }

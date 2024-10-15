@@ -17,7 +17,7 @@ type Resource struct {
 	Bitrate         uint     `xml:"bitrate,attr,omitempty"`
 	Duration        string   `xml:"duration,attr,omitempty"`
 	Resolution      string   `xml:"resolution,attr,omitempty"`
-	AudioChannels   string   `xml:"nrAudioChannels,attr,omitempty"`
+	AudioChannels   int      `xml:"nrAudioChannels,attr,omitempty"`
 	SampleFrequency string   `xml:"sampleFrequency,attr,omitempty"`
 }
 

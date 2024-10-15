@@ -51,14 +51,11 @@ func (s *Scanner) Scan() {
 	slog.Debug("Complete scan media dir", "UPDATE_ID", s.newUpdateID)
 }
 func (s *Scanner) beforeScan() (err error) {
-	_, err = DB.Exec(`UPDATE OBJECTS SET TO_DELETE = 1 WHERE PATH IS NOT NULL`)
-	if err != nil {
+	if _, err = DB.Exec(`UPDATE OBJECTS SET TO_DELETE = 1 WHERE OBJECT_ID <> '0'`); err != nil {
 		return err
 	}
-
 	s.lastUpdateID = GetCurrentUpdateID()
 	s.newUpdateID = s.lastUpdateID + 1
-
 	return
 }
 func (s *Scanner) afterScan() (err error) {
@@ -74,99 +71,101 @@ func (s *Scanner) afterScan() (err error) {
 
 	return
 }
-func (s *Scanner) readDir(dir string) (err error) {
+func (s *Scanner) readDir(dir string) error {
 	var entries []fs.DirEntry
 	var info fs.FileInfo
+	var err error
+
 	if entries, err = os.ReadDir(dir); err != nil {
-		return
-	}
-	for _, entry := range entries {
-		if info, err = entry.Info(); err != nil {
-			return
-		}
-		fullPath := path.Join(dir, entry.Name())
-		if entry.IsDir() {
-			if err = s.checkFolder(fullPath, info); err != nil {
-				return
-			}
-			if err = s.readDir(fullPath); err != nil {
-				return
-			}
-		} else if isVideoFile(entry.Name()) {
-			if err = s.checkVideo(fullPath, info); err != nil {
-				return
-			}
-		}
-	}
-	return
-}
-
-func (s *Scanner) checkFolder(fullPath string, info fs.FileInfo) (err error) {
-	slog.Debug("FOLDER", "path", fullPath)
-
-	var res sql.Result
-	var affectedCount int64
-	res, err = sq.Update("OBJECTS").Set("TO_DELETE", 0).
-		Where("PATH = ? AND CLASS = ?", fullPath, ClassFolder).
-		RunWith(DB).Exec()
-
-	if err != nil {
 		return err
 	}
 
+	for _, entry := range entries {
+		fullPath := path.Join(dir, entry.Name())
+
+		// can not get info about file/directory - just skip it
+		if info, err = entry.Info(); err != nil {
+			slog.Debug("skip entry", "path", fullPath, "err", err.Error())
+			continue
+		}
+
+		// folder
+		if entry.IsDir() {
+			if err = s.checkFolder(fullPath, info); err != nil {
+				slog.Info("directory add problem", "path", fullPath, "err", err.Error())
+			} else if err = s.readDir(fullPath); err != nil {
+				slog.Info("directory read problem", "path", fullPath, "err", err.Error())
+			}
+			continue
+		}
+
+		// video
+		if isVideoFile(entry.Name()) {
+			if err = s.checkVideo(fullPath, info); err != nil {
+				slog.Info("video file add problem", "path", fullPath, "err", err.Error())
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Scanner) checkFolder(fullPath string, info fs.FileInfo) (err error) {
+	var relPath string
+	if relPath, err = relativePath(fullPath); err != nil {
+		return
+	}
+	slog.Debug("FOLDER", "path", relPath)
+
+	var res sql.Result
+	var affectedCount int64
+	query := `UPDATE OBJECTS SET TO_DELETE = 0 WHERE PATH = ? AND TYPE = ?`
+	if res, err = DB.Exec(query, relPath, Folder); err != nil {
+		return
+	}
 	if affectedCount, err = res.RowsAffected(); err != nil || affectedCount > 0 {
 		// one from: [record exists, and we removed mark TO_DELETE to this record] or [error in operation]
 		return
 	}
 
 	var parentID string
-	if parentID, err = findParentId(fullPath); err != nil {
+	if parentID, err = findParentId(relPath); err != nil {
 		return
 	}
 
 	_, err = sq.Insert("OBJECTS").SetMap(map[string]any{
 		"OBJECT_ID": getNewObjectId(parentID),
 		"PARENT_ID": parentID,
-		"CLASS":     ClassFolder,
+		"TYPE":      Folder,
 		"TITLE":     info.Name(),
-		"PATH":      fullPath,
-		"TIMESTAMP": info.ModTime().Unix(),
+		"PATH":      relPath,
 		"UPDATE_ID": s.newUpdateID,
 		"TO_DELETE": 0,
 	}).RunWith(DB).Exec()
 
-	if err == nil {
-		query := `UPDATE OBJECTS SET CHILDREN_COUNT = CHILDREN_COUNT + 1, UPDATE_ID = ?  where OBJECT_ID = ?`
-		_, err = DB.Exec(query, s.newUpdateID, parentID)
-	}
-
+	err = s.incrementChildrenCount(err, parentID)
 	return
 }
 
 func (s *Scanner) checkVideo(fullPath string, info fs.FileInfo) (err error) {
-	slog.Debug("> VIDEO", "path", fullPath)
+	var relPath string
+	if relPath, err = relativePath(fullPath); err != nil {
+		return
+	}
+	slog.Debug("> VIDEO", "path", relPath)
 
 	var res sql.Result
 	var affectedCount int64
-	query := `UPDATE OBJECTS SET TO_DELETE = 0  where PATH = ? AND CLASS = ?`
-	res, err = DB.Exec(query, fullPath, ClassVideo)
-
-	//res, err = sq.Update("OBJECTS").
-	//	SetMap(map[string]any{"TO_DELETE": 0}).
-	//	Where(sq.Eq{"PATH": fullPath, "CLASS": ClassVideo}).
-	//	RunWith(DB).Exec()
-
-	if err != nil {
+	query := `UPDATE OBJECTS SET TO_DELETE = 0 WHERE PATH = ? AND TYPE = ?`
+	if res, err = DB.Exec(query, relPath, Video); err != nil {
 		return err
 	}
-
 	if affectedCount, err = res.RowsAffected(); err != nil || affectedCount > 0 {
 		// one from: [record exists, and we removed mark TO_DELETE to this record] or [error in operation]
 		return
 	}
 
 	var parentID string
-	if parentID, err = findParentId(fullPath); err != nil {
+	if parentID, err = findParentId(relPath); err != nil {
 		return
 	}
 
@@ -174,9 +173,16 @@ func (s *Scanner) checkVideo(fullPath string, info fs.FileInfo) (err error) {
 	defer cancelFn()
 
 	var ffdata *ffprobe.ProbeData
-	ffdata, err = ffprobe.ProbeURL(ctx, fullPath)
-	if err != nil {
+	if ffdata, err = ffprobe.ProbeURL(ctx, fullPath); err != nil {
 		err = fmt.Errorf("ffprobe '%s' : %w", fullPath, err)
+		return
+	}
+
+	vStream := ffdata.FirstVideoStream()
+	aStream := ffdata.FirstAudioStream()
+
+	if vStream == nil || aStream == nil {
+		err = fmt.Errorf("video or audio steam is empty '%s'", fullPath)
 		return
 	}
 
@@ -186,33 +192,51 @@ func (s *Scanner) checkVideo(fullPath string, info fs.FileInfo) (err error) {
 		return
 	}
 
-	_, err = sq.Insert("OBJECTS").SetMap(map[string]any{
-		"OBJECT_ID":      getNewObjectId(parentID),
-		"PARENT_ID":      parentID,
-		"CLASS":          ClassVideo,
-		"TITLE":          NameWithoutExt(info.Name()),
-		"PATH":           fullPath,
-		"TIMESTAMP":      info.ModTime().Unix(),
-		"UPDATE_ID":      s.newUpdateID,
-		"META_DATA":      string(b),
-		"TO_DELETE":      0,
-		"CHILDREN_COUNT": 1, // to simplify selection of object with any class which have counter > 0
-	}).RunWith(DB).Exec()
-
-	if err == nil {
-		// mark container as updated and increment counter of children
-		query = `UPDATE OBJECTS SET CHILDREN_COUNT = CHILDREN_COUNT + 1, UPDATE_ID = ? where OBJECT_ID = ?`
-		_, err = DB.Exec(query, s.newUpdateID, parentID)
+	size, _ := strconv.ParseUint(ffdata.Format.Size, 10, 64)
+	sampleRate, _ := strconv.ParseUint(aStream.SampleRate, 10, 64)
+	var bitrate uint64
+	if bitrate, err = strconv.ParseUint(ffdata.Format.BitRate, 10, 64); err == nil {
+		if bitrate > 8 {
+			bitrate = bitrate / 8
+		}
 	}
 
+	_, err = sq.Insert("OBJECTS").SetMap(map[string]any{
+		"OBJECT_ID":    getNewObjectId(parentID),
+		"PARENT_ID":    parentID,
+		"TYPE":         Video,
+		"TITLE":        NameWithoutExt(info.Name()),
+		"PATH":         relPath,
+		"TIMESTAMP":    info.ModTime().Unix(),
+		"UPDATE_ID":    s.newUpdateID,
+		"META_DATA":    string(b),
+		"DURATION_SEC": ffdata.Format.DurationSeconds,
+		"SIZE":         size,
+		"RESOLUTION":   fmt.Sprintf("%dx%d", vStream.Width, vStream.Height),
+		"CHANNELS":     aStream.Channels,
+		"SAMPLE_RATE":  sampleRate,
+		"BITRATE":      bitrate,
+		"MIME":         detectMime(path.Ext(relPath), vStream, aStream),
+		"TO_DELETE":    0,
+	}).RunWith(DB).Exec()
+
+	err = s.incrementChildrenCount(err, parentID)
 	return
 }
 
+func (s *Scanner) incrementChildrenCount(err error, objectID string) error {
+	if err != nil {
+		return err
+	}
+	query := `UPDATE OBJECTS SET SIZE = SIZE + 1, UPDATE_ID = ?  where OBJECT_ID = ? AND TYPE = ?`
+	_, err = DB.Exec(query, s.newUpdateID, objectID, Folder)
+	return err
+}
+
 func GetCurrentUpdateID() uint64 {
-	row := sq.Select("VALUE").From("SETTINGS").
-		Where("KEY = ?", "UPDATE_ID").RunWith(DB).QueryRow()
 	var updateId uint64
-	if err := row.Scan(&updateId); err != nil {
+	err := DB.QueryRow(`SELECT VALUE FROM SETTINGS WHERE KEY = 'UPDATE_ID'`).Scan(&updateId)
+	if err != nil {
 		slog.Error("select UPDATE_ID", "err", err.Error())
 		return 1
 	}
@@ -255,14 +279,24 @@ func getNewObjectId(parentID string) string {
 	return parentID + "$" + strconv.FormatInt(getNextAvailableId(parentID), 10)
 }
 
-func findParentId(fullPath string) (parentID string, err error) {
-	folder := filepath.Dir(fullPath)
-	if folder == MediaDir {
+func findParentId(relPath string) (parentID string, err error) {
+	folder := filepath.Dir(relPath)
+	if folder == "/" {
 		parentID = "0"
 		return
 	}
-	row := sq.Select("OBJECT_ID").From("OBJECTS").Where(sq.Eq{"PATH": folder, "CLASS": ClassFolder}).
-		RunWith(DB).QueryRow()
-	err = row.Scan(&parentID)
+	query := `SELECT OBJECT_ID FROM OBJECTS WHERE PATH = ? AND TYPE = ?`
+	err = DB.QueryRow(query, folder, Folder).Scan(&parentID)
 	return
+}
+
+func relativePath(fullPath string) (string, error) {
+	if strings.HasPrefix(fullPath, MediaDir) {
+		return strings.TrimPrefix(fullPath, MediaDir), nil
+	}
+	return "", fmt.Errorf("%s is not in MediaDir folder", fullPath)
+}
+
+func detectMime(ext string, vStream *ffprobe.Stream, aStream *ffprobe.Stream) string {
+	return "video/x-msvideo"
 }

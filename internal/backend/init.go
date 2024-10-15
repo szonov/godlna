@@ -8,12 +8,6 @@ import (
 	"path/filepath"
 )
 
-var (
-	MediaDir string
-	CacheDir string
-	DB       *sql.DB
-)
-
 func Init(media, cache string) (err error) {
 	if MediaDir, err = filepath.Abs(media); err != nil {
 		return

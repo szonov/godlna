@@ -43,14 +43,14 @@ func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Reques
 	case "BrowseDirectChildren":
 		objects, out.TotalMatches = backend.GetObjects(backend.ObjectFilter{
 			ParentID: in.ObjectID,
-			Offset:   in.StartingIndex,
 			Limit:    in.RequestedCount,
+			Offset:   in.StartingIndex,
 		})
 	case "BrowseMetadata":
 		objects, out.TotalMatches = backend.GetObjects(backend.ObjectFilter{
 			ObjectID: in.ObjectID,
-			Offset:   0,
 			Limit:    1,
+			Offset:   0,
 		})
 		if out.TotalMatches == 0 {
 			soap.SendUPnPError(upnpav.NoSuchObjectErrorCode, "no such object", w, http.StatusBadRequest)

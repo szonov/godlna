@@ -24,11 +24,12 @@ func main() {
 
 	if err := backend.Init("storage/media", "storage/cache"); err != nil {
 		slog.Error("PANIC", "err", err)
-		return
+		os.Exit(1)
 	}
 
 	scanner := backend.NewScanner()
 	scanner.Scan()
+	//return
 
 	// ------------------------------------------------------------
 	// 2. setup device
@@ -44,22 +45,22 @@ func main() {
 		Device: &device.Device{
 			DeviceType:   "urn:schemas-upnp-org:device:MediaServer:1",
 			FriendlyName: friendlyName,
-			UDN:          device.NewUDN(friendlyName + "-01"),
+			UDN:          device.NewUDN(friendlyName),
 			Manufacturer: "Home",
 			ModelName:    "DLNA Server",
 			IconList: []device.Icon{
-				{Mimetype: "image/jpeg", Width: 120, Height: 120, Depth: 24, URL: "/icons/DeviceIcon120.jpg"},
-				{Mimetype: "image/jpeg", Width: 48, Height: 48, Depth: 24, URL: "/icons/DeviceIcon48.jpg"},
-				{Mimetype: "image/png", Width: 120, Height: 120, Depth: 24, URL: "/icons/DeviceIcon120.png"},
-				{Mimetype: "image/png", Width: 48, Height: 48, Depth: 24, URL: "/icons/DeviceIcon48.png"},
+				{Mimetype: "image/jpeg", Width: 120, Height: 120, Depth: 24, URL: "/device/icons/DeviceIcon120.jpg"},
+				{Mimetype: "image/jpeg", Width: 48, Height: 48, Depth: 24, URL: "/device/icons/DeviceIcon48.jpg"},
+				{Mimetype: "image/png", Width: 120, Height: 120, Depth: 24, URL: "/device/icons/DeviceIcon120.png"},
+				{Mimetype: "image/png", Width: 48, Height: 48, Depth: 24, URL: "/device/icons/DeviceIcon48.png"},
 			},
 			ServiceList: []*device.Service{
 				{
 					ServiceType: contentdirectory.ServiceType,
 					ServiceId:   contentdirectory.ServiceId,
-					SCPDURL:     "/ContentDirectory.xml",
-					ControlURL:  "/ctl/{profile}/ContentDirectory",
-					EventSubURL: "/evt/{profile}/ContentDirectory",
+					SCPDURL:     "/ContentDirectory/desc.xml",
+					ControlURL:  "/ContentDirectory/{profile}/ctl",
+					EventSubURL: "/ContentDirectory/{profile}/evt",
 				},
 			},
 			PresentationURL: "http://" + listenAddress + "/",
@@ -72,19 +73,22 @@ func main() {
 					device.VendorValue("X_ProductCap", "smi,DCM10,getMediaInfo.sec,getCaptionInfo.sec"),
 				),
 		},
-		Location: "/rootDesc.xml",
+		Location: "/device/desc.xml",
 	}
 
 	// ------------------------------------------------------------
 	// 3. setup services and handlers
 	// ------------------------------------------------------------
 
-	if err := contentdirectory.Init(); err != nil {
-		slog.Error("PANIC: content directory init", "err", err)
-		return
+	if err := deviceinfo.Init(deviceDescription); err != nil {
+		slog.Error("PANIC: device info init", "err", err)
+		os.Exit(1)
 	}
 
-	deviceController := deviceinfo.NewController(deviceDescription)
+	if err := contentdirectory.Init(); err != nil {
+		slog.Error("PANIC: content directory init", "err", err)
+		os.Exit(1)
+	}
 
 	// ------------------------------------------------------------
 	// 4. setup dlna http server
@@ -99,17 +103,24 @@ func main() {
 		//Debug: dlnaserver.DebugFull,
 		BeforeHttpStart: func(s *dlnaserver.Server, mux *http.ServeMux, desc *device.Description) {
 
-			mux.HandleFunc("/", s.HookFunc(deviceController.HandlePresentationURL))
-			mux.HandleFunc("/rootDesc.xml", s.HookFunc(deviceController.HandleDescRoot))
+			// index
+			mux.HandleFunc("/", s.HookFunc(deviceinfo.HandlePresentationURL))
 
-			mux.HandleFunc("/icons/", s.HookFunc(deviceController.HandleIcons))
+			// device
+			mux.HandleFunc("/device/desc.xml", s.HookFunc(deviceinfo.HandleDeviceDescriptionURL))
+			mux.HandleFunc("/device/icons/", s.HookFunc(deviceinfo.HandleIcons))
 
-			mux.HandleFunc("/ContentDirectory.xml", s.HookFunc(contentdirectory.HandleSCPDURL))
-			mux.HandleFunc("/ctl/{profile}/ContentDirectory", s.HookFunc(contentdirectory.HandleControlURL))
-			mux.HandleFunc("/evt/{profile}/ContentDirectory", s.HookFunc(contentdirectory.HandleEventSubURL))
-			mux.HandleFunc("/thumbs/{profile}/{image}", s.HookFunc(contentdirectory.HandleThumbnailURL))
-			mux.HandleFunc("/video/{profile}/{video}", s.HookFunc(contentdirectory.HandleVideoURL))
+			// content directory
+			mux.HandleFunc("/ContentDirectory/desc.xml", s.HookFunc(contentdirectory.HandleSCPDURL))
+			mux.HandleFunc("/ContentDirectory/{profile}/ctl", s.HookFunc(contentdirectory.HandleControlURL))
+			mux.HandleFunc("/ContentDirectory/{profile}/evt", s.HookFunc(contentdirectory.HandleEventSubURL))
 
+			// content
+			mux.HandleFunc("/content/{profile}/thumb/{path...}", s.HookFunc(contentdirectory.HandleThumbnailURL))
+			mux.HandleFunc("/content/{profile}/video/{path...}", s.HookFunc(contentdirectory.HandleVideoURL))
+
+			//mux.HandleFunc("/thumbs/{profile}/{image}", s.HookFunc(contentdirectory.HandleThumbnailURL))
+			//mux.HandleFunc("/video/{profile}/{video}", s.HookFunc(contentdirectory.HandleVideoURL))
 		},
 	}
 

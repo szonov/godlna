@@ -1,10 +1,5 @@
 package backend
 
-const (
-	ClassFolder = "container.storageFolder"
-	ClassVideo  = "item.videoItem"
-)
-
 func createSchema() (err error) {
 
 	version := 0
@@ -16,26 +11,40 @@ func createSchema() (err error) {
 	}
 
 	if version == 0 {
+		// FOLDER: objectID, parentID, Class, Title
+
 		// create objects table
 		err = execQuery(err, `CREATE TABLE IF NOT EXISTS OBJECTS (
-			ID INTEGER PRIMARY KEY AUTOINCREMENT,
-			OBJECT_ID TEXT UNIQUE NOT NULL,
-			PARENT_ID TEXT NOT NULL,
-			CLASS TEXT NOT NULL,
-			TITLE TEXT COLLATE NOCASE,
-			TIMESTAMP INTEGER,
-			CHILDREN_COUNT INTEGER DEFAULT 0,
-			PATH TEXT DEFAULT NULL,
-			META_DATA TEXT,
-			UPDATE_ID INTEGER,
-			BOOKMARK INTEGER default 0,
-			TO_DELETE INTEGER DEFAULT 0
+			ID 				INTEGER PRIMARY KEY AUTOINCREMENT,
+
+			-- common properties
+			OBJECT_ID 	TEXT UNIQUE NOT NULL,
+			PARENT_ID 	TEXT NOT NULL,
+			TYPE 		INTEGER NOT NULL, -- 1: folder, 2: video item
+			TITLE 		TEXT COLLATE NOCASE,
+			PATH 		TEXT NOT NULL,
+			UPDATE_ID 	INTEGER NOT NULL,
+			SIZE 		INTEGER NOT NULL default 0, -- children count for container, file size for video item
+
+			-- video item property
+			TIMESTAMP 		INTEGER,
+			RESOLUTION 		TEXT,
+			CHANNELS   		INTEGER,
+			SAMPLE_RATE		INTEGER,
+			BITRATE         INTEGER,
+			BOOKMARK 		INTEGER,
+			DURATION_SEC 	REAL,
+			MIME 			TEXT,
+			META_DATA 		TEXT,
+
+			-- system use properties
+			TO_DELETE 	INTEGER DEFAULT 0
 		)`)
 
-		query := `INSERT INTO OBJECTS (TITLE, OBJECT_ID, PARENT_ID, CLASS, UPDATE_ID) VALUES (?, ?, ?, ?, ?)`
-		err = execQuery(err, query, "root", "0", "-1", ClassFolder, "10")
+		query := `INSERT INTO OBJECTS (TITLE, PATH, OBJECT_ID, PARENT_ID, TYPE, UPDATE_ID) VALUES (?, ?, ?, ?, ?, ?)`
+		err = execQuery(err, query, "root", "/", "0", "-1", Folder, "40")
 
-		err = execQuery(err, `INSERT INTO SETTINGS (KEY, VALUE) VALUES ('UPDATE_ID', '10')`)
+		err = execQuery(err, `INSERT INTO SETTINGS (KEY, VALUE) VALUES ('UPDATE_ID', '40')`)
 		err = execQuery(err, `INSERT INTO SETTINGS (KEY, VALUE) VALUES ('VERSION', '1')`)
 	}
 	return

@@ -1,8 +1,8 @@
 package contentdirectory
 
 import (
+	"github.com/szonov/godlna/internal/backend"
 	"github.com/szonov/godlna/internal/client"
-	"github.com/szonov/godlna/internal/thumbnails"
 	"log/slog"
 	"net/http"
 	"os"
@@ -10,13 +10,14 @@ import (
 
 func HandleThumbnailURL(w http.ResponseWriter, r *http.Request) {
 	profile := client.GetProfileByRequest(r)
-	image := r.PathValue("image")
-	if image == "" {
+	imageName := r.PathValue("path")
+	objectID := backend.NameWithoutExt(imageName)
+	if objectID == "" {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	info, err := thumbnails.GetImageInfo(image, profile)
+	info, err := backend.GetThumbnailInfo(objectID, profile)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
@@ -36,6 +37,11 @@ func HandleThumbnailURL(w http.ResponseWriter, r *http.Request) {
 		}
 	}(file)
 
-	w.Header().Set("Content-Type", info.Mime)
-	http.ServeContent(w, r, info.Name, info.Time, file)
+	w.Header().Set("realTimeInfo.dlna.org", "DLNA.ORG_TLAG=*")
+	w.Header().Set("transferMode.dlna.org", "Interactive")
+	w.Header().Set("contentFeatures.dlna.org", "DLNA.ORG_PN=JPEG_TN")
+
+	// thumbnail always jpeg image
+	w.Header().Set("Content-Type", "image/jpeg")
+	http.ServeContent(w, r, imageName, info.Time, file)
 }

@@ -1,16 +1,14 @@
-package thumbnails
+package backend
 
 import (
 	"fmt"
 	"github.com/disintegration/imaging"
-	"github.com/szonov/godlna/internal/backend"
 	"github.com/szonov/godlna/internal/client"
 	"github.com/szonov/godlna/internal/fs_util"
 	"image"
 	"image/color"
 	"image/draw"
 	"log/slog"
-	"math/rand/v2"
 	"os"
 	"os/exec"
 	"path"
@@ -18,31 +16,29 @@ import (
 	"time"
 )
 
-type ImageInfo struct {
-	Name string
+type ThumbnailInfo struct {
 	Path string
-	Mime string
 	Time time.Time
-	Size int64
 }
 
-func GetImageInfo(image string, profile *client.Profile) (*ImageInfo, error) {
-
-	objectExt := path.Ext(image)
-	objectID := image[:len(image)-len(objectExt)]
+func GetThumbnailInfo(objectID string, profile *client.Profile) (*ThumbnailInfo, error) {
 	objectPath := strings.Replace(objectID, "$", "/", -1)
-
-	imagePath := path.Join(backend.CacheDir, "thumbs", objectPath, profile.Name+objectExt)
+	imagePath := path.Join(CacheDir, "thumbs", objectPath, profile.Name+".jpg")
 
 	var statInfo os.FileInfo
 	var err error
 	statInfo, err = os.Stat(imagePath)
 	if err != nil && os.IsNotExist(err) {
-		src := backend.GetObjectPath(objectID)
+		src, percent, seen := GetObjectPathPercentSeen(objectID)
+		slog.Debug("PPP",
+			"src", src,
+			"percent", percent,
+			"seen", seen,
+		)
 		if src == "" {
 			return nil, fmt.Errorf("object path not found '%s'", objectID)
 		}
-		if err = makeThumb(src, imagePath, profile); err != nil {
+		if err = makeThumb(src, imagePath, percent, seen, profile); err != nil {
 			return nil, err
 		}
 		statInfo, err = os.Stat(imagePath)
@@ -51,52 +47,31 @@ func GetImageInfo(image string, profile *client.Profile) (*ImageInfo, error) {
 		}
 	}
 
-	thumbMimeType := "image/jpeg"
-	if strings.Contains(objectExt, "png") {
-		thumbMimeType = "image/png"
-	}
-	return &ImageInfo{
-		Name: statInfo.Name(),
-		Path: imagePath,
-		Mime: thumbMimeType,
-		Time: statInfo.ModTime(),
-		Size: statInfo.Size(),
-	}, nil
+	return &ThumbnailInfo{Path: imagePath, Time: statInfo.ModTime()}, nil
 }
 
-func makeThumb(src, dest string, profile *client.Profile) (err error) {
+func makeThumb(src, dest string, percent uint8, seen bool, profile *client.Profile) (err error) {
 
-	videoThumb := dest + ".thumb"
+	videoThumb := NameWithoutExt(dest) + "-orig.jpg"
 
 	if !fs_util.FileExists(videoThumb) {
 		if err = fs_util.EnsureDirectoryExistsForFile(dest); err != nil {
 			return err
 		}
-
-		// make thumbnail from video file, save it with extension .thumb
-		//args := make([]string, 0)
-		//args = append(args, "-s", "0", "-q", "10", "-c", "jpeg", "-t", "10", "-i", src, "-o", dest+".thumb")
-		//args := []string{"-s", "0", "-q", "10", "-c", "jpeg", "-t", "10", "-i", src, "-o", dest + ".thumb"}
-		//args = append(args, "-t", "10")
-		//args = append(args, "-i", src, "-o", dest+".thumb")
-		//cmd := exec.Command("ffmpegthumbnailer", args...)
 		cmd := exec.Command("ffmpegthumbnailer",
 			"-s", "0", "-q", "10", "-c", "jpeg", "-t", "10",
 			"-i", src, "-o", videoThumb)
-		_, err = cmd.Output()
-		if err != nil {
+		if _, err = cmd.Output(); err != nil {
 			slog.Error("makeVideoThumb",
 				slog.String("cmd", "ffmpegthumbnailer "+strings.Join(cmd.Args, " ")),
 				slog.String("err", err.Error()),
 			)
+			return
 		}
 	}
 
 	// create now real final thumb with percents included
-	// random for testing view on TV
-	percent := rand.IntN(101)
-
-	err = MakeFinalThumb(videoThumb, dest, 480, profile.UseSquareThumbnails(), uint8(percent))
+	err = makeFinalThumb(videoThumb, dest, 480, profile.UseSquareThumbnails(), percent)
 
 	if err != nil {
 		slog.Error("makeFinalThumb", slog.String("dest", dest), slog.String("err", err.Error()))
@@ -104,7 +79,7 @@ func makeThumb(src, dest string, profile *client.Profile) (err error) {
 	return
 }
 
-func MakeFinalThumb(src, dest string, thumbWidth int, squire bool, percent uint8) (err error) {
+func makeFinalThumb(src, dest string, thumbWidth int, squire bool, percent uint8) (err error) {
 
 	percentHeight := 40
 	var srcImg image.Image

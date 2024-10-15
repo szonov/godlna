@@ -8,95 +8,88 @@ import (
 	"github.com/szonov/godlna/internal/upnpav"
 	"gopkg.in/vansante/go-ffprobe.v2"
 	"path/filepath"
-	"strconv"
-	"time"
 )
 
-func transformObject(item *backend.Object, profile *client.Profile) (ret interface{}, err error) {
-
-	objectID := item.ObjectID
-	parentID := item.ParentID
-
-	//if profile.UseVideoAsRoot() {
-	//	switch backend.VideoID {
-	//	case objectID:
-	//		objectID = "0"
-	//		parentID = "-1"
-	//	case parentID:
-	//		parentID = "0"
-	//	}
-	//}
-
-	obj := upnpav.Object{
-		ID:         objectID,
-		Restricted: 1,
-		ParentID:   parentID,
-		Class:      "object." + item.Class,
-		Title:      item.Title,
+func transformContainer(o *backend.Object) upnpav.Container {
+	return upnpav.Container{
+		Object: upnpav.Object{
+			ID:         o.ObjectID,
+			Restricted: 1,
+			ParentID:   o.ParentID,
+			Class:      "object.container.storageFolder",
+			Title:      o.Title,
+		},
+		ChildCount: o.Size.Uint64(),
 	}
-	if item.Class == backend.ClassFolder {
-		ret = upnpav.Container{
-			Object:     obj,
-			ChildCount: item.ChildrenCount,
-		}
-		return
-	}
+}
 
-	obj.Date = time.Unix(item.Timestamp, 0).Format("2006-01-02T15:04:05")
+func transformVideo(o *backend.Object, profile *client.Profile) (ret upnpav.Item, err error) {
 
 	var meta *ffprobe.ProbeData
-	if err = json.Unmarshal([]byte(item.MetaData), &meta); err != nil {
+	if err = json.Unmarshal([]byte(o.MetaData), &meta); err != nil {
 		return
 	}
 
 	if meta == nil {
-		err = fmt.Errorf("no meta for '%s'", item.ObjectID)
+		err = fmt.Errorf("no meta for '%s'", o.ObjectID)
 		return
 	}
-	// test
 
-	obj.Icon = "http://" + profile.Host + "/thumbs/" + profile.Name + "/" + item.ObjectID + ".jpg"
-	obj.AlbumArtURI = &upnpav.AlbumArtURI{
-		Value:   obj.Icon,
-		Profile: "JPEG_TN",
-	}
+	// generate URLs for thumbnail and video
+	thumbURL := "http://" + profile.Host + "/content/" + profile.Name + "/thumb/" + o.ObjectID + ".jpg"
+	videoURL := "http://" + profile.Host + "/content/" + profile.Name + "/video/" + o.ObjectID + filepath.Ext(o.Path)
 
-	res := make([]upnpav.Resource, 0)
-	var size uint64
-	size, err = strconv.ParseUint(meta.Format.Size, 10, 64)
-	if err != nil {
-		return
-	}
-	vstream := meta.FirstVideoStream()
-	astream := meta.FirstAudioStream()
-	res = append(res, upnpav.Resource{
-		URL: "http://" + profile.Host + "/video/" + profile.Name + "/" + item.ObjectID + filepath.Ext(item.Path),
-		//ProtocolInfo: "http-get:*:video/avi:DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000",
-		ProtocolInfo: "http-get:*:video/x-msvideo:DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000",
-		//ProtocolInfo:    "http-get:*:video/x-mkv:DLNA.ORG_PN=MATROSKA;DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=21D00000000000000000000000000000",
-		Bitrate:         backend.FmtBitrate(meta.Format.BitRate),
-		SampleFrequency: astream.SampleRate,
-		Duration:        backend.FmtDuration(meta.Format.Duration()),
-		Size:            size,
-		Resolution:      fmt.Sprintf("%dx%d", vstream.Width, vstream.Height),
-		AudioChannels:   strconv.Itoa(astream.Channels),
-	})
-
-	// icon
-	res = append(res, upnpav.Resource{
-		URL:          obj.Icon,
-		ProtocolInfo: "http-get:*:image/jpeg:DLNA.ORG_PN=JPEG_TN;DLNA.ORG_FLAGS=00f00000000000000000000000000000",
-	})
-
-	dcmInfo := ""
-	if item.Bookmark > 0 {
-		dcmInfo = fmt.Sprintf("BM=%d", profile.BookmarkResponseValue(item.Bookmark))
+	// bookmark
+	var dcmInfo string
+	if o.Bookmark != nil && o.Bookmark.Uint64() > 0 {
+		dcmInfo = fmt.Sprintf("BM=%d", profile.BookmarkResponseValue(o.Bookmark.Uint64()))
 	}
 
 	ret = upnpav.Item{
-		Object:  obj,
+		Object: upnpav.Object{
+			ID:          o.ObjectID,
+			Restricted:  1,
+			ParentID:    o.ParentID,
+			Class:       "object.item.videoItem",
+			Title:       o.Title,
+			Date:        o.Timestamp.Time().Format("2006-01-02T15:04:05"),
+			Icon:        thumbURL,
+			AlbumArtURI: &upnpav.AlbumArtURI{Value: thumbURL, Profile: "JPEG_TN"},
+		},
 		DcmInfo: dcmInfo,
-		Res:     res,
+		Res: []upnpav.Resource{
+			{
+				URL:             videoURL,
+				ProtocolInfo:    fmt.Sprintf("http-get:*:%s:%s", o.MimeType, contentFeatures()),
+				Bitrate:         o.BitRate.Uint(),
+				SampleFrequency: o.SampleRate.String(),
+				Duration:        o.DurationSec.String(),
+				Size:            o.Size.Uint64(),
+				Resolution:      o.Resolution.String(),
+				AudioChannels:   o.Channels.Int(),
+			},
+			{
+				URL:          thumbURL,
+				ProtocolInfo: "http-get:*:image/jpeg:DLNA.ORG_PN=JPEG_TN;DLNA.ORG_FLAGS=00f00000000000000000000000000000",
+			},
+		},
 	}
 	return
+}
+
+func transformObject(o *backend.Object, profile *client.Profile) (interface{}, error) {
+
+	if o.Type == backend.Folder {
+		return transformContainer(o), nil
+	}
+
+	if o.Type == backend.Video {
+		return transformVideo(o, profile)
+	}
+
+	return nil, fmt.Errorf("unknown type '%d' for object '%s'", o.Type, o.ObjectID)
+}
+
+func contentFeatures() string {
+	return "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000"
 }

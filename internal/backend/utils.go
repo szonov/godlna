@@ -1,11 +1,9 @@
 package backend
 
 import (
-	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 )
 
 var videoExts = []string{
@@ -39,13 +37,8 @@ func NameWithoutExt(file string) string {
 //	return "0"
 //}
 
-func FmtDuration(d time.Duration) string {
-	ms := d.Milliseconds() % 1000
-	s := int(d.Seconds()) % 60
-	m := int(d.Minutes()) % 60
-	h := int(d.Hours())
-	return fmt.Sprintf("%02d:%02d:%02d.%03d", h, m, s, ms)
-}
+//	//time.Duration(f.DurationSeconds * float64(time.Second))
+
 func FmtBitrate(bitRate string) uint {
 	if v, err := strconv.ParseUint(bitRate, 10, 64); err == nil {
 		if v > 8 {

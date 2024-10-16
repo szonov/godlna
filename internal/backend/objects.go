@@ -4,7 +4,10 @@ import (
 	"database/sql"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/szonov/godlna/internal/fs_util"
 	"log/slog"
+	"path"
+	"strings"
 	"time"
 )
 
@@ -21,26 +24,27 @@ var (
 
 type (
 	Object struct {
-		ID          int64
-		ObjectID    string
-		ParentID    string
-		Type        int
-		Title       string
-		Path        string
-		Timestamp   *NullableNumber
-		UpdateID    uint64
-		Size        *NullableNumber
-		Resolution  *NullableString
-		Channels    *NullableNumber
-		SampleRate  *NullableNumber
-		BitRate     *NullableNumber
-		Bookmark    *NullableNumber
-		DurationSec *Duration
-		MimeType    *NullableString
+		ID         int64
+		ObjectID   string
+		ParentID   string
+		Type       int
+		Path       string
+		Timestamp  *NullableNumber
+		UpdateID   uint64
+		Size       *NullableNumber
+		Resolution *NullableString
+		Channels   *NullableNumber
+		SampleRate *NullableNumber
+		BitRate    *NullableNumber
+		Bookmark   *NullableNumber
+		Duration   *Duration
+		Format     *NullableString
+		VideoCodec *NullableString
+		AudioCodec *NullableString
 	}
 
-	Duration       float64
-	NullableNumber uint64
+	Duration       int64
+	NullableNumber int64
 	NullableString string
 )
 
@@ -49,17 +53,41 @@ func (o *Object) FullPath() string {
 }
 
 func (o *Object) BookmarkPercent() uint8 {
-	percent := o.Bookmark.Uint64()
-	duration := o.DurationSec.Uint64()
-	if percent > 0 && duration > 0 {
-		return uint8(100 * percent / duration)
+	bm := o.Bookmark.Uint64()
+	duration := o.Duration.Uint64()
+	if bm > 0 && duration > 0 {
+		return uint8(100 * bm / duration)
 	}
 	return 0
 }
 
+func (o *Object) MimeType() string {
+	format := o.Format.String()
+
+	if strings.Contains(format, "matroska") {
+		return "video/x-matroska"
+	}
+
+	if strings.Contains(format, "avi") {
+		return "video/avi"
+	}
+
+	return "video/x-msvideo"
+}
+
+func (o *Object) Title() string {
+	if o.Path == "/" {
+		return "root"
+	}
+	if o.Type == Folder {
+		return path.Base(o.Path)
+	}
+	return fs_util.NameWithoutExtension(path.Base(o.Path))
+}
+
 func (d *Duration) Duration() time.Duration {
 	if d != nil {
-		return time.Duration(float64(*d) * float64(time.Second))
+		return time.Duration(int64(*d) * int64(time.Second))
 	}
 	return 0
 }
@@ -78,7 +106,7 @@ func (d *Duration) String() string {
 	m := int(dur.Minutes()) % 60
 	h := int(dur.Hours())
 
-	return fmt.Sprintf("%02d:%02d:%02d.%03d", h, m, s, ms)
+	return fmt.Sprintf("%d:%02d:%02d.%03d", h, m, s, ms)
 }
 
 func (n *NullableNumber) String() string {
@@ -170,24 +198,25 @@ func getFilteredObjects(oid, pid string, limit, offset int64, withTotal bool) ([
 	}
 
 	rows, err = sq.Select(
-		"OBJECT_ID",    /*1*/
-		"PARENT_ID",    /*2*/
-		"TYPE",         /*3*/
-		"TITLE",        /*4*/
-		"TIMESTAMP",    /*5*/
-		"SIZE",         /*6*/
-		"RESOLUTION",   /*7*/
-		"CHANNELS",     /*8*/
-		"SAMPLE_RATE",  /*9*/
-		"BITRATE",      /*10*/
-		"BOOKMARK",     /*11*/
-		"DURATION_SEC", /*12*/
-		"PATH",         /*13*/
-		"MIME",         /*14*/
+		"OBJECT_ID",   /*1*/
+		"PARENT_ID",   /*2*/
+		"TYPE",        /*3*/
+		"TIMESTAMP",   /*4*/
+		"SIZE",        /*5*/
+		"RESOLUTION",  /*6*/
+		"CHANNELS",    /*7*/
+		"SAMPLE_RATE", /*8*/
+		"BITRATE",     /*9*/
+		"BOOKMARK",    /*10*/
+		"DURATION",    /*11*/
+		"PATH",        /*12*/
+		"FORMAT",      /*13*/
+		"VIDEO_CODEC", /*14*/
+		"AUDIO_CODEC", /*15*/
 	).
 		From("OBJECTS").
 		Where(where).
-		OrderBy("TYPE", "TITLE").
+		OrderBy("TYPE", "PATH").
 		Limit(uint64(limit)).
 		Offset(uint64(offset)).
 		RunWith(DB).Query()
@@ -207,20 +236,21 @@ func getFilteredObjects(oid, pid string, limit, offset int64, withTotal bool) ([
 	for rows.Next() {
 		item := &Object{}
 		err = rows.Scan(
-			&item.ObjectID,    /*1*/
-			&item.ParentID,    /*2*/
-			&item.Type,        /*3*/
-			&item.Title,       /*4*/
-			&item.Timestamp,   /*5*/
-			&item.Size,        /*6*/
-			&item.Resolution,  /*7*/
-			&item.Channels,    /*8*/
-			&item.SampleRate,  /*9*/
-			&item.BitRate,     /*10*/
-			&item.Bookmark,    /*11*/
-			&item.DurationSec, /*12*/
-			&item.Path,        /*13*/
-			&item.MimeType,    /*14*/
+			&item.ObjectID,   /*1*/
+			&item.ParentID,   /*2*/
+			&item.Type,       /*3*/
+			&item.Timestamp,  /*4*/
+			&item.Size,       /*5*/
+			&item.Resolution, /*6*/
+			&item.Channels,   /*7*/
+			&item.SampleRate, /*8*/
+			&item.BitRate,    /*9*/
+			&item.Bookmark,   /*10*/
+			&item.Duration,   /*11*/
+			&item.Path,       /*12*/
+			&item.Format,     /*13*/
+			&item.VideoCodec, /*14*/
+			&item.AudioCodec, /*15*/
 		)
 		if err != nil {
 			slog.Error("scan error", "err", err.Error())
@@ -230,16 +260,6 @@ func getFilteredObjects(oid, pid string, limit, offset int64, withTotal bool) ([
 	}
 
 	return items, totalCount
-}
-
-func GetObjectPathMime(objectID string) (string, string) {
-	var path string
-	var mime *NullableString
-	_ = DB.QueryRow(`SELECT PATH, MIME FROM OBJECTS WHERE OBJECT_ID = ?`, objectID).Scan(&path, &mime)
-	if path != "" {
-		return MediaDir + path, mime.String()
-	}
-	return "", ""
 }
 
 func SetBookmark(objectID string, posSecond uint64) {

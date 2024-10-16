@@ -96,7 +96,7 @@ func storageFolder(o *backend.Object) upnpav.Container {
 			Restricted: 1,
 			ParentID:   o.ParentID,
 			Class:      "object.container.storageFolder",
-			Title:      o.Title,
+			Title:      o.Title(),
 		},
 		ChildCount: o.Size.Uint64(),
 	}
@@ -120,7 +120,7 @@ func videoItem(o *backend.Object, profile *client.Profile) upnpav.Item {
 			Restricted: 1,
 			ParentID:   o.ParentID,
 			Class:      "object.item.videoItem",
-			Title:      o.Title,
+			Title:      o.Title(),
 			Date:       o.Timestamp.Time().Format("2006-01-02T15:04:05"),
 			// check - maybe it does not needed for TVs
 			//Icon:        thumbURL,
@@ -130,10 +130,10 @@ func videoItem(o *backend.Object, profile *client.Profile) upnpav.Item {
 		Res: []upnpav.Resource{
 			{
 				URL:             videoURL,
-				ProtocolInfo:    protocolInfo(o.MimeType.String(), contentVideoFeatures()),
+				ProtocolInfo:    protocolInfo(o.MimeType(), contentVideoFeatures()),
 				Bitrate:         o.BitRate.Uint(),
 				SampleFrequency: o.SampleRate.String(),
-				Duration:        o.DurationSec.String(),
+				Duration:        o.Duration.String(),
 				Size:            o.Size.Uint64(),
 				Resolution:      o.Resolution.String(),
 				AudioChannels:   o.Channels.Int(),

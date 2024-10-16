@@ -2,19 +2,8 @@ package backend
 
 func createSchema() (err error) {
 
-	version := 0
-
 	err = execQuery(err, `CREATE TABLE IF NOT EXISTS SETTINGS (KEY TEXT UNIQUE NOT NULL, VALUE TEXT)`)
-
-	if err == nil {
-		_ = DB.QueryRow(`SELECT VALUE FROM SETTINGS WHERE KEY = 'VERSION'`).Scan(&version)
-	}
-
-	if version == 0 {
-		// FOLDER: objectID, parentID, Class, Title
-
-		// create objects table
-		err = execQuery(err, `CREATE TABLE IF NOT EXISTS OBJECTS (
+	err = execQuery(err, `CREATE TABLE IF NOT EXISTS OBJECTS (
 			ID 				INTEGER PRIMARY KEY AUTOINCREMENT,
 
 			-- common properties
@@ -35,21 +24,25 @@ func createSchema() (err error) {
 			BOOKMARK 		INTEGER,
 			DURATION_SEC 	REAL,
 			MIME 			TEXT,
-			META_DATA 		TEXT,
+			--META_DATA 		TEXT,
 
 			-- system use properties
 			TO_DELETE 	INTEGER DEFAULT 0
 		)`)
 
-		query := `INSERT INTO OBJECTS (TITLE, PATH, OBJECT_ID, PARENT_ID, TYPE, UPDATE_ID) VALUES (?, ?, ?, ?, ?, ?)`
-		err = execQuery(err, query, "root", "/", "0", "-1", Folder, "40")
+	var count int
+	err = DB.QueryRow("SELECT COUNT(*) FROM OBJECTS").Scan(&count)
 
-		err = execQuery(err, `INSERT INTO SETTINGS (KEY, VALUE) VALUES ('UPDATE_ID', '40')`)
-		err = execQuery(err, `INSERT INTO SETTINGS (KEY, VALUE) VALUES ('VERSION', '1')`)
+	if err == nil && count == 0 {
+		query := `INSERT INTO OBJECTS (OBJECT_ID, PARENT_ID, TITLE, PATH,  TYPE, UPDATE_ID) VALUES (?, ?, ?, ?, ?, ?)`
+		err = execQuery(err, query, "0", "-1", "root", "/", Folder, "120")
+		err = execQuery(err, `INSERT INTO SETTINGS (KEY, VALUE) VALUES ('UPDATE_ID', '120')`)
 	}
+
 	return
 }
 
+// execQuery executes query only if err is nil and returns err
 func execQuery(err error, query string, args ...interface{}) error {
 	if err != nil {
 		return err

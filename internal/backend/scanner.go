@@ -187,10 +187,11 @@ func (s *Scanner) checkVideo(fullPath string, info fs.FileInfo) (err error) {
 	}
 
 	var b []byte
-	if b, err = json.Marshal(ffdata); err != nil {
+	if b, err = json.MarshalIndent(ffdata, "", "  "); err != nil {
 		err = fmt.Errorf("JSON Marshal '%s' : %w", fullPath, err)
 		return
 	}
+	slog.Debug("FFPROBE", "json", "\n"+string(b))
 
 	size, _ := strconv.ParseUint(ffdata.Format.Size, 10, 64)
 	sampleRate, _ := strconv.ParseUint(aStream.SampleRate, 10, 64)
@@ -209,7 +210,6 @@ func (s *Scanner) checkVideo(fullPath string, info fs.FileInfo) (err error) {
 		"PATH":         relPath,
 		"TIMESTAMP":    info.ModTime().Unix(),
 		"UPDATE_ID":    s.newUpdateID,
-		"META_DATA":    string(b),
 		"DURATION_SEC": ffdata.Format.DurationSeconds,
 		"SIZE":         size,
 		"RESOLUTION":   fmt.Sprintf("%dx%d", vStream.Width, vStream.Height),
@@ -298,5 +298,13 @@ func relativePath(fullPath string) (string, error) {
 }
 
 func detectMime(ext string, vStream *ffprobe.Stream, aStream *ffprobe.Stream) string {
-	return "video/x-msvideo"
+	if strings.Contains(vStream.CodecName, "matroska") {
+		return "video/x-matroska"
+	}
+	switch ext {
+	case ".avi":
+		return "video/avi"
+	default:
+		return "video/x-msvideo"
+	}
 }

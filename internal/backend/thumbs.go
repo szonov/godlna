@@ -16,78 +16,75 @@ import (
 	"time"
 )
 
-type ThumbnailInfo struct {
-	Path string
-	Time time.Time
+func objectThumbnailPaths(objectID string, profile *client.Profile) (thumbnailPath string, videoFramePath string) {
+	objectPath := strings.Replace(objectID, "$", "/", -1)
+	thumbnailPath = path.Join(CacheDir, "thumbs", objectPath, profile.Name+".jpg")
+	videoFramePath = path.Join(CacheDir, "thumbs", objectPath, "video-frame.jpg")
+	return
 }
 
-func GetThumbnailInfo(objectID string, profile *client.Profile) (*ThumbnailInfo, error) {
-	objectPath := strings.Replace(objectID, "$", "/", -1)
-	imagePath := path.Join(CacheDir, "thumbs", objectPath, profile.Name+".jpg")
+func GetThumbnail(objectID string, profile *client.Profile) (imPath string, t time.Time, err error) {
+
+	thumbnailPath, videoFramePath := objectThumbnailPaths(objectID, profile)
 
 	var statInfo os.FileInfo
-	var err error
-	statInfo, err = os.Stat(imagePath)
-	if err != nil && os.IsNotExist(err) {
-		src, percent, seen := GetObjectPathPercentSeen(objectID)
-		slog.Debug("PPP",
-			"src", src,
-			"percent", percent,
-			"seen", seen,
-		)
-		if src == "" {
-			return nil, fmt.Errorf("object path not found '%s'", objectID)
+	if statInfo, err = os.Stat(thumbnailPath); err != nil && os.IsNotExist(err) {
+		var object *Object
+
+		if object = GetObject(objectID); object == nil {
+			return "", time.Now(), fmt.Errorf("object not found '%s'", objectID)
 		}
-		if err = makeThumb(src, imagePath, percent, seen, profile); err != nil {
-			return nil, err
-		}
-		statInfo, err = os.Stat(imagePath)
+
+		err = grabVideoFrame(object.FullPath(), videoFramePath, false)
 		if err != nil {
-			return nil, fmt.Errorf("generated thumb is not found")
+			return "", time.Now(), err
+		}
+
+		err = makeThumbnail(videoFramePath, thumbnailPath, profile.UseSquareThumbnails(), object.BookmarkPercent())
+		if err != nil {
+			return "", time.Now(), err
+		}
+		statInfo, err = os.Stat(thumbnailPath)
+		if err != nil {
+			return "", time.Now(), fmt.Errorf("generated thumb not found '%s'", thumbnailPath)
 		}
 	}
 
-	return &ThumbnailInfo{Path: imagePath, Time: statInfo.ModTime()}, nil
+	return thumbnailPath, statInfo.ModTime(), nil
 }
 
-func makeThumb(src, dest string, percent uint8, seen bool, profile *client.Profile) (err error) {
+func grabVideoFrame(src, dest string, force bool) (err error) {
 
-	videoThumb := NameWithoutExt(dest) + "-orig.jpg"
-
-	if !fs_util.FileExists(videoThumb) {
+	if force || !fs_util.FileExists(dest) {
 		if err = fs_util.EnsureDirectoryExistsForFile(dest); err != nil {
 			return err
 		}
-		cmd := exec.Command("ffmpegthumbnailer",
-			"-s", "0", "-q", "10", "-c", "jpeg", "-t", "10",
-			"-i", src, "-o", videoThumb)
+
+		cmd := exec.Command("ffmpegthumbnailer", "-s", "0", "-q", "10", "-c", "jpeg", "-t", "10",
+			"-i", src, "-o", dest)
+
 		if _, err = cmd.Output(); err != nil {
-			slog.Error("makeVideoThumb",
+			slog.Error("grabVideoFrame",
 				slog.String("cmd", "ffmpegthumbnailer "+strings.Join(cmd.Args, " ")),
 				slog.String("err", err.Error()),
 			)
-			return
 		}
-	}
-
-	// create now real final thumb with percents included
-	err = makeFinalThumb(videoThumb, dest, 480, profile.UseSquareThumbnails(), percent)
-
-	if err != nil {
-		slog.Error("makeFinalThumb", slog.String("dest", dest), slog.String("err", err.Error()))
 	}
 	return
 }
 
-func makeFinalThumb(src, dest string, thumbWidth int, squire bool, percent uint8) (err error) {
+func makeThumbnail(src, dest string, squire bool, bookmarkPercent uint8) (err error) {
 
-	percentHeight := 40
+	thumbWidth := 480
+	coloredLineHeight := 20
+
 	var srcImg image.Image
 	var dstImage *image.NRGBA
 
 	if srcImg, err = imaging.Open(src); err != nil {
 		return err
 	}
+
 	if squire {
 		dstImage = imaging.Thumbnail(srcImg, thumbWidth, thumbWidth, imaging.Lanczos)
 	} else {
@@ -96,16 +93,19 @@ func makeFinalThumb(src, dest string, thumbWidth int, squire bool, percent uint8
 
 	imageHeight := dstImage.Bounds().Max.Y
 
-	if percent > 0 {
-		if percent > 100 {
-			percent = 100
+	if bookmarkPercent > 0 {
+		if bookmarkPercent > 100 {
+			bookmarkPercent = 100
 		}
 		spaceAround := 10
-		barWidth := thumbWidth - 2*spaceAround
-		percentWidth := int(percent) * barWidth / 100
-		bar := image.Rect(spaceAround, imageHeight-percentHeight, percentWidth, imageHeight-spaceAround)
+		width := thumbWidth - 2*spaceAround
+		coloredLineWidth := int(bookmarkPercent) * width / 100
+		line := image.Rect(
+			spaceAround, imageHeight-coloredLineHeight-spaceAround,
+			spaceAround+coloredLineWidth, imageHeight-spaceAround,
+		)
 		barColor := color.RGBA{R: 110, G: 215, B: 92, A: 255}
-		draw.Draw(dstImage, bar, &image.Uniform{C: barColor}, image.Point{}, draw.Src)
+		draw.Draw(dstImage, line, &image.Uniform{C: barColor}, image.Point{}, draw.Src)
 	}
 
 	err = imaging.Save(dstImage, dest)

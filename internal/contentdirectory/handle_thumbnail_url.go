@@ -17,7 +17,7 @@ func HandleThumbnailURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info, err := backend.GetThumbnailInfo(objectID, profile)
+	imagePath, modTime, err := backend.GetThumbnail(objectID, profile)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
@@ -25,7 +25,7 @@ func HandleThumbnailURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var file *os.File
-	if file, err = os.Open(info.Path); err != nil {
+	if file, err = os.Open(imagePath); err != nil {
 		slog.Error("open thumb file", "err", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -37,11 +37,10 @@ func HandleThumbnailURL(w http.ResponseWriter, r *http.Request) {
 		}
 	}(file)
 
-	w.Header().Set("realTimeInfo.dlna.org", "DLNA.ORG_TLAG=*")
 	w.Header().Set("transferMode.dlna.org", "Interactive")
-	w.Header().Set("contentFeatures.dlna.org", "DLNA.ORG_PN=JPEG_TN")
+	w.Header().Set("contentFeatures.dlna.org", contentThumbnailFeatures())
 
 	// thumbnail always jpeg image
 	w.Header().Set("Content-Type", "image/jpeg")
-	http.ServeContent(w, r, imageName, info.Time, file)
+	http.ServeContent(w, r, imageName, modTime, file)
 }

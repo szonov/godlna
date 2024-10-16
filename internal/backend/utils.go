@@ -2,7 +2,6 @@ package backend
 
 import (
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -26,30 +25,3 @@ func NameWithoutExt(file string) string {
 	ext := filepath.Ext(file)
 	return file[0 : len(file)-len(ext)]
 }
-
-//func GetParentID(objectID string) string {
-//	if pos := strings.LastIndex(objectID, "$"); pos != -1 {
-//		return objectID[0:pos]
-//	}
-//	if objectID == "0" {
-//		return "-1"
-//	}
-//	return "0"
-//}
-
-//	//time.Duration(f.DurationSeconds * float64(time.Second))
-
-func FmtBitrate(bitRate string) uint {
-	if v, err := strconv.ParseUint(bitRate, 10, 64); err == nil {
-		if v > 8 {
-			return uint(v / 8)
-		}
-		return uint(v)
-	}
-	return 0
-}
-
-//func fmtSampleRate(sampleRate string) int64 {
-//	v, _ := strconv.ParseInt(sampleRate, 10, 64)
-//	return v
-//}

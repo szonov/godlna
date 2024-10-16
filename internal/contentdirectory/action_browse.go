@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"github.com/szonov/godlna/internal/backend"
 	"github.com/szonov/godlna/internal/client"
+	"github.com/szonov/godlna/internal/logger"
 	"github.com/szonov/godlna/internal/soap"
 	"github.com/szonov/godlna/internal/upnpav"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -28,30 +30,29 @@ type argOutBrowse struct {
 }
 
 func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Request) {
-
 	in := &argInBrowse{}
-	out := &argOutBrowse{}
-
 	if err := soap.UnmarshalEnvelopeRequest(r.Body, in); err != nil {
 		soap.SendError(err, w)
 		return
 	}
+	logger.DebugPointer("[input] Browse", in)
 
+	object := backend.GetObject(in.ObjectID)
+	if object == nil {
+		soap.SendUPnPError(upnpav.NoSuchObjectErrorCode, "no such object", w, http.StatusBadRequest)
+		return
+	}
+
+	out := &argOutBrowse{}
 	profile := client.GetProfileByRequest(r)
 	var objects []*backend.Object
 
 	switch in.BrowseFlag {
 	case "BrowseDirectChildren":
-		objects, out.TotalMatches = backend.GetObjectChildren(in.ObjectID, in.RequestedCount, in.StartingIndex)
+		objects, out.TotalMatches = object.Children(in.RequestedCount, in.StartingIndex)
 
 	case "BrowseMetadata":
-		object := backend.GetObject(in.ObjectID)
-		if object == nil {
-			soap.SendUPnPError(upnpav.NoSuchObjectErrorCode, "no such object", w, http.StatusBadRequest)
-			return
-		}
-		objects = []*backend.Object{object}
-		out.TotalMatches = 1
+		objects, out.TotalMatches = []*backend.Object{object}, 1
 
 	default:
 		err := fmt.Errorf("invalid BrowseFlag: %s", in.BrowseFlag)
@@ -60,7 +61,7 @@ func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Reques
 	}
 
 	out.NumberReturned = len(objects)
-	out.UpdateID = serviceState.GetUint64("SystemUpdateID")
+	out.UpdateID = object.UpdateID.Uint64()
 	out.Result = &soap.DIDLLite{
 		Debug: strings.Contains(r.UserAgent(), "DIDLDebug"),
 	}
@@ -78,7 +79,6 @@ func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Reques
 
 func contentVideoFeatures() string {
 	return "DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000"
-	//return "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000"
 }
 
 func contentThumbnailFeatures() string {
@@ -104,8 +104,10 @@ func storageFolder(o *backend.Object) upnpav.Container {
 
 func videoItem(o *backend.Object, profile *client.Profile) upnpav.Item {
 
+	updateIdStr := strconv.Itoa(int(o.UpdateID))
+
 	// generate URLs for thumbnail and video
-	thumbURL := "http://" + profile.Host + "/content/" + profile.Name + "/thumb/" + o.ObjectID + ".jpg"
+	thumbURL := "http://" + profile.Host + "/content/" + profile.Name + "/thumb/" + updateIdStr + "/" + o.ObjectID + ".jpg"
 	videoURL := "http://" + profile.Host + "/content/" + profile.Name + "/video/" + o.ObjectID + filepath.Ext(o.Path)
 
 	// bookmark
@@ -116,14 +118,12 @@ func videoItem(o *backend.Object, profile *client.Profile) upnpav.Item {
 
 	return upnpav.Item{
 		Object: upnpav.Object{
-			ID:         o.ObjectID,
-			Restricted: 1,
-			ParentID:   o.ParentID,
-			Class:      "object.item.videoItem",
-			Title:      o.Title(),
-			Date:       o.Timestamp.Time().Format("2006-01-02T15:04:05"),
-			// check - maybe it does not needed for TVs
-			//Icon:        thumbURL,
+			ID:          o.ObjectID,
+			Restricted:  1,
+			ParentID:    o.ParentID,
+			Class:       "object.item.videoItem",
+			Title:       o.Title(),
+			Date:        o.Timestamp.Time().Format("2006-01-02T15:04:05"),
 			AlbumArtURI: &upnpav.AlbumArtURI{Value: thumbURL, Profile: "JPEG_TN"},
 		},
 		DcmInfo: dcmInfo,

@@ -3,12 +3,14 @@ package backend
 import (
 	"database/sql"
 	"fmt"
-	sq "github.com/Masterminds/squirrel"
-	"github.com/szonov/godlna/internal/fs_util"
 	"log/slog"
 	"path"
+	"strconv"
 	"strings"
 	"time"
+
+	sq "github.com/Masterminds/squirrel"
+	"github.com/szonov/godlna/internal/fs_util"
 )
 
 const (
@@ -30,13 +32,13 @@ type (
 		Type       int
 		Path       string
 		Timestamp  *NullableNumber
-		UpdateID   uint64
+		UpdateID   UpdateIdNumber
 		Size       *NullableNumber
 		Resolution *NullableString
 		Channels   *NullableNumber
 		SampleRate *NullableNumber
 		BitRate    *NullableNumber
-		Bookmark   *NullableNumber
+		Bookmark   *Duration
 		Duration   *Duration
 		Format     *NullableString
 		VideoCodec *NullableString
@@ -46,7 +48,16 @@ type (
 	Duration       int64
 	NullableNumber int64
 	NullableString string
+	UpdateIdNumber uint64
 )
+
+func (u UpdateIdNumber) Uint64() uint64 {
+	return uint64(u)
+}
+
+func (u UpdateIdNumber) String() string {
+	return strconv.FormatUint(uint64(u), 10)
+}
 
 func (o *Object) FullPath() string {
 	return MediaDir + o.Path
@@ -85,6 +96,10 @@ func (o *Object) Title() string {
 	return fs_util.NameWithoutExtension(path.Base(o.Path))
 }
 
+func (o *Object) Children(limit, offset int64) ([]*Object, uint64) {
+	return getFilteredObjects("", o.ObjectID, limit, offset, true)
+}
+
 func (d *Duration) Duration() time.Duration {
 	if d != nil {
 		return time.Duration(int64(*d) * int64(time.Second))
@@ -107,6 +122,18 @@ func (d *Duration) String() string {
 	h := int(dur.Hours())
 
 	return fmt.Sprintf("%d:%02d:%02d.%03d", h, m, s, ms)
+}
+
+func (d *Duration) PercentOf(full *Duration) uint8 {
+	dLen := d.Uint64()
+	fullLen := full.Uint64()
+	if dLen > fullLen {
+		return 100
+	}
+	if dLen > 0 && fullLen > 0 {
+		return uint8(100 * dLen / fullLen)
+	}
+	return 0
 }
 
 func (n *NullableNumber) String() string {
@@ -156,10 +183,6 @@ func GetObject(objectID string) *Object {
 		return objects[0]
 	}
 	return nil
-}
-
-func GetObjectChildren(objectID string, limit, offset int64) ([]*Object, uint64) {
-	return getFilteredObjects("", objectID, limit, offset, true)
 }
 
 func getFilteredObjects(oid, pid string, limit, offset int64, withTotal bool) ([]*Object, uint64) {
@@ -213,6 +236,7 @@ func getFilteredObjects(oid, pid string, limit, offset int64, withTotal bool) ([
 		"FORMAT",      /*13*/
 		"VIDEO_CODEC", /*14*/
 		"AUDIO_CODEC", /*15*/
+		"UPDATE_ID",   /*16*/
 	).
 		From("OBJECTS").
 		Where(where).
@@ -251,6 +275,7 @@ func getFilteredObjects(oid, pid string, limit, offset int64, withTotal bool) ([
 			&item.Format,     /*13*/
 			&item.VideoCodec, /*14*/
 			&item.AudioCodec, /*15*/
+			&item.UpdateID,   /*16*/
 		)
 		if err != nil {
 			slog.Error("scan error", "err", err.Error())
@@ -263,12 +288,40 @@ func getFilteredObjects(oid, pid string, limit, offset int64, withTotal bool) ([
 }
 
 func SetBookmark(objectID string, posSecond uint64) {
-	_, err := sq.Update("OBJECTS").Set("BOOKMARK", posSecond).Where(sq.Eq{"OBJECT_ID": objectID}).
-		RunWith(DB).Exec()
-
-	if err != nil {
-		slog.Error("set bookmark", "err", err.Error())
+	if posSecond > 60 {
+		// short time slot to remember next time what I watched
+		posSecond -= 8
 	}
+	slog.Debug("set bookmark", "obj", objectID, "pos", posSecond)
 
-	// todo - thumb manipulations
+	var query string
+	newUpdateID := GetSystemUpdateId() + 1
+
+	// set bookmark
+	query = `UPDATE OBJECTS SET BOOKMARK = ?, UPDATE_ID = ? WHERE OBJECT_ID = ?`
+	if _, err := DB.Exec(query, posSecond, newUpdateID, objectID); err != nil {
+		slog.Error("set bookmark", "err", err.Error(), "obj", objectID, "pos", posSecond)
+	}
+	// update parents' UPDATE_ID
+	touchParent(objectID, newUpdateID)
+	// set system's setting UPDATE_ID
+	setUpdateID(newUpdateID)
+	// remove thumbnails, should be generated new one
+	removeThumbnails(objectID)
+}
+
+func touchParent(objectID string, newUpdateID UpdateIdNumber) {
+	parentID := GetParentID(objectID)
+	query := `UPDATE OBJECTS SET UPDATE_ID = ? WHERE OBJECT_ID = ?`
+	if _, err := DB.Exec(query, newUpdateID, parentID); err != nil {
+		slog.Error("update parent", "err", err.Error(), "objectID", objectID, "parentID", parentID)
+	}
+}
+
+func RemoveObjectWithChildren(objectID string) {
+	query := `DELETE FROM OBJECTS WHERE OBJECT_ID = ? OR OBJECT_ID like ?`
+	if _, err := DB.Exec(query, objectID, objectID+"$%"); err != nil {
+		slog.Error("delete object parent", "err", err.Error(), "objectID", objectID)
+	}
+	removeThumbnails(objectID)
 }

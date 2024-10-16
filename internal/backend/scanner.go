@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/szonov/godlna/internal/fs_util"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -14,14 +13,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/szonov/godlna/internal/fs_util"
+
 	sq "github.com/Masterminds/squirrel"
 	"gopkg.in/vansante/go-ffprobe.v2"
 )
 
 type (
 	Scanner struct {
-		lastUpdateID uint64
-		newUpdateID  uint64
+		lastUpdateID UpdateIdNumber
+		newUpdateID  UpdateIdNumber
 	}
 )
 
@@ -53,7 +54,7 @@ func (s *Scanner) beforeScan() (err error) {
 	if _, err = DB.Exec(`UPDATE OBJECTS SET TO_DELETE = 1 WHERE OBJECT_ID <> '0'`); err != nil {
 		return err
 	}
-	s.lastUpdateID = GetCurrentUpdateID()
+	s.lastUpdateID = GetSystemUpdateId()
 	s.newUpdateID = s.lastUpdateID + 1
 	return
 }
@@ -183,13 +184,6 @@ func (s *Scanner) checkVideo(fullPath string, info fs.FileInfo) (err error) {
 		return
 	}
 
-	//var b []byte
-	//if b, err = json.MarshalIndent(ffdata, "", "  "); err != nil {
-	//	err = fmt.Errorf("JSON Marshal '%s' : %w", fullPath, err)
-	//	return
-	//}
-	//slog.Debug("FFPROBE", "json", "\n"+string(b))
-
 	size, _ := strconv.ParseUint(ffdata.Format.Size, 10, 64)
 	sampleRate, _ := strconv.ParseUint(aStream.SampleRate, 10, 64)
 	var bitrate uint64
@@ -230,8 +224,8 @@ func (s *Scanner) incrementChildrenCount(err error, objectID string) error {
 	return err
 }
 
-func GetCurrentUpdateID() uint64 {
-	var updateId uint64
+func GetSystemUpdateId() UpdateIdNumber {
+	var updateId UpdateIdNumber
 	err := DB.QueryRow(`SELECT VALUE FROM SETTINGS WHERE KEY = 'UPDATE_ID'`).Scan(&updateId)
 	if err != nil {
 		slog.Error("select UPDATE_ID", "err", err.Error())
@@ -240,8 +234,8 @@ func GetCurrentUpdateID() uint64 {
 	return updateId
 }
 
-func getMaxUpdateID() uint64 {
-	var updateID uint64
+func getMaxUpdateID() UpdateIdNumber {
+	var updateID UpdateIdNumber
 	if err := DB.QueryRow(`SELECT MAX(UPDATE_ID) FROM OBJECTS`).Scan(&updateID); err != nil {
 		slog.Error("select MAX(UPDATE_ID)", "err", err.Error())
 		return 1
@@ -249,29 +243,38 @@ func getMaxUpdateID() uint64 {
 	return updateID
 }
 
-func setUpdateID(updateID uint64) {
+func setUpdateID(updateID UpdateIdNumber) {
 	_, err := DB.Exec(`UPDATE SETTINGS SET VALUE = ? WHERE KEY = 'UPDATE_ID'`, updateID)
 	if err != nil {
 		slog.Error("update settings", "err", err.Error())
 	}
 }
 
-func getNextId() int64 {
+func getNewObjectId(parentID string) string {
 	var seq int64
 	if err := DB.QueryRow(`SELECT seq FROM SQLITE_SEQUENCE WHERE name = 'OBJECTS'`).Scan(&seq); err != nil {
-		slog.Error("getNextId", "err", err.Error())
+		slog.Error("select seq", "err", err.Error())
 	}
-	return seq + 1
-}
+	seq += 1
 
-func getNewObjectId(parentID string) string {
-	return parentID + "$" + strconv.FormatInt(getNextId(), 10)
+	return parentID + "$" + strconv.FormatInt(seq, 10)
 }
 
 func findParentId(relPath string) (parentID string, err error) {
 	query := `SELECT OBJECT_ID FROM OBJECTS WHERE PATH = ? AND TYPE = ?`
 	err = DB.QueryRow(query, filepath.Dir(relPath), Folder).Scan(&parentID)
 	return
+}
+
+func GetParentID(objectID string) string {
+	i := strings.LastIndex(objectID, "$")
+	if i > -1 {
+		return objectID[:i]
+	}
+	if objectID == "0" {
+		return "-1"
+	}
+	return "0"
 }
 
 func relativePath(fullPath string) (string, error) {

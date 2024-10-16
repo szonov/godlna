@@ -145,11 +145,11 @@ func (m *Manager) renew(sid string, timeout time.Time) int {
 	return http.StatusOK
 }
 
-func (m *Manager) NotifyChanges(changedVariables map[string]string) {
-	if len(changedVariables) == 0 {
+func (m *Manager) NotifyAll(stateVariables map[string]string) {
+	if len(stateVariables) == 0 {
 		return
 	}
-	body, err := BuildNotificationBody(changedVariables)
+	body, err := BuildNotificationBody(stateVariables)
 	if err != nil {
 		slog.Debug("Failed to build notification body", "err", err.Error())
 		return
@@ -168,8 +168,8 @@ func (m *Manager) NotifyChanges(changedVariables map[string]string) {
 	})
 }
 
-func (m *Manager) SendInitialState(sid string, allVariables map[string]string) {
-	if len(allVariables) == 0 {
+func (m *Manager) SendInitialState(sid string, stateVariables map[string]string) {
+	if len(stateVariables) == 0 {
 		return
 	}
 	v, exists := m.subscribers.Load(sid)
@@ -178,12 +178,18 @@ func (m *Manager) SendInitialState(sid string, allVariables map[string]string) {
 	}
 	subscriber := v.(Subscriber)
 	subscriber.Seq = 0 // it is already should be "0", but...
-	body, err := BuildNotificationBody(allVariables)
+	body, err := BuildNotificationBody(stateVariables)
 	if err != nil {
 		slog.Debug("Failed to build notification body", "err", err.Error())
 		return
 	}
-	m.notifySubscriber(subscriber, body)
+	go func() {
+		// function calls when new subscribe happens,
+		// give a time to close connection and deliver "SID" value to subscriber
+		// doc: page 65. > The response must be sent within 30 seconds, including expected transmission time.
+		time.Sleep(2 * time.Second)
+		m.notifySubscriber(subscriber, body)
+	}()
 }
 
 func (m *Manager) notifySubscriber(s Subscriber, body []byte) {
@@ -193,23 +199,20 @@ func (m *Manager) notifySubscriber(s Subscriber, body []byte) {
 		return
 	}
 	for _, u := range s.URLs {
-		go func() {
-			time.Sleep(1 * time.Second)
-			if err := SendNotification(s.SID, s.Seq, u, body); err != nil {
-				slog.Debug("Failed to send notification",
-					slog.String("err", err.Error()),
-					slog.String("to", u.String()),
-					slog.String("sid", s.SID),
-				)
-				// TODO: maybe delete subscription in case of error...?
-			}
-		}()
+		if err := SendNotification(s.SID, s.Seq, u, body); err != nil {
+			slog.Debug("Failed to send notification",
+				slog.String("err", err.Error()),
+				slog.String("to", u.String()),
+				slog.String("sid", s.SID),
+			)
+		}
 	}
 }
 
 func (m *Manager) Dump() {
 	m.subscribers.Range(func(k, v interface{}) bool {
-		fmt.Printf("DUMP[%v]: [%v]\n", k, v)
+		ss := v.(Subscriber)
+		slog.Info("SUBSCRIBER", "sid", ss.SID, "seq", ss.Seq, "urls", ss.URLs, "expired", ss.IsExpired())
 		return true
 	})
 }

@@ -1,10 +1,14 @@
 package contentdirectory
 
-import "net/http"
+import (
+	"github.com/szonov/godlna/internal/backend"
+	"net/http"
+)
 
 func HandleEventSubURL(w http.ResponseWriter, r *http.Request) {
+
 	if r.Method == "SUBSCRIBE" {
-		res := serviceState.Subscribe(
+		res := eventManager.Subscribe(
 			r.Header.Get("SID"),
 			r.Header.Get("NT"),
 			r.Header.Get("CALLBACK"),
@@ -15,8 +19,16 @@ func HandleEventSubURL(w http.ResponseWriter, r *http.Request) {
 			w.Header()["TIMEOUT"] = []string{res.TimeoutHeaderString}
 		}
 		w.WriteHeader(res.StatusCode)
+
+		if res.Success && res.IsNewSubscription {
+			eventManager.SendInitialState(res.SID, map[string]string{
+				"SystemUpdateID":     backend.GetSystemUpdateId().String(),
+				"ContainerUpdateIDs": "",
+			})
+		}
+
 	} else if r.Method == "UNSUBSCRIBE" {
-		statusCode := serviceState.Unsubscribe(
+		statusCode := eventManager.Unsubscribe(
 			r.Header.Get("SID"),
 			r.Header.Get("NT"),
 			r.Header.Get("CALLBACK"),

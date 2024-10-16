@@ -7,11 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
 )
 
 func HandleThumbnailURL(w http.ResponseWriter, r *http.Request) {
 	profile := client.GetProfileByRequest(r)
-	imageName := r.PathValue("path")
+	imageName := path.Base(r.PathValue("path"))
 	objectID := fs_util.NameWithoutExtension(imageName)
 	if objectID == "" {
 		w.WriteHeader(http.StatusNotFound)

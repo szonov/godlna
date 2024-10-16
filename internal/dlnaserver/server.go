@@ -1,27 +1,17 @@
 package dlnaserver
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/szonov/godlna/internal/logger"
 	"github.com/szonov/godlna/upnp/device"
 	"github.com/szonov/godlna/upnp/ssdp"
 	"log/slog"
 	"net"
 	"net/http"
-	"net/http/httptest"
-	"net/http/httputil"
 	"runtime"
-	"strconv"
-	"strings"
 	"time"
-)
-
-const (
-	DebugNone = iota
-	DebugLight
-	DebugFull
 )
 
 type (
@@ -46,8 +36,6 @@ type (
 		// BeforeSsdpStart runs before ssdp server start,
 		// place to modify ssdp parameters, executed only if SsdpInterface is defined
 		BeforeSsdpStart func(*ssdp.Server, *device.Description)
-
-		Debug int
 
 		// private
 		srv        *http.Server
@@ -124,73 +112,7 @@ func (s *Server) Hook(next http.HandlerFunc) http.Handler {
 // HookFunc middleware adds 'Server' header to outgoing responses
 func (s *Server) HookFunc(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.Debug == DebugLight {
-			slog.Info("Request",
-				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
-				slog.String("remote", r.RemoteAddr),
-			)
-		}
-		reqDump, _ := httputil.DumpRequest(r, true)
-
-		slog.Info("Request",
-			slog.String("method", r.Method),
-			slog.String("path", r.URL.Path),
-			slog.String("remote", r.RemoteAddr),
-			slog.String("len", strconv.Itoa(len(reqDump))),
-			slog.String("body", "\n"+string(reqDump)),
-		)
-		if s.Debug == DebugFull {
-			//reqDump, _ := httputil.DumpRequest(r, true)
-			//
-			//slog.Info("Request",
-			//	slog.String("method", r.Method),
-			//	slog.String("path", r.URL.Path),
-			//	slog.String("remote", r.RemoteAddr),
-			//	slog.String("len", strconv.Itoa(len(reqDump))),
-			//	slog.String("body", "\n"+string(reqDump)),
-			//)
-
-			wt := httptest.NewRecorder()
-
-			// write to test output
-			wt.Header().Set("Server", s.ServerHeader)
-			next.ServeHTTP(wt, r)
-
-			// debug test output
-			resDump := new(bytes.Buffer)
-			_ = wt.Result().Write(resDump)
-
-			var resDumpString string
-			ct := wt.Header().Get("Content-Type")
-			if ct != "" && !strings.Contains(ct, "text") {
-				resDumpString = resDump.String()
-				if pos := strings.Index(resDumpString, "\r\n\r\n"); pos != -1 {
-					resDumpString = resDumpString[:pos+4] + "<... cut binary content ...>"
-				}
-			} else {
-				resDumpString = resDump.String()
-			}
-
-			slog.Info("Response",
-				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
-				slog.String("remote", r.RemoteAddr),
-				slog.String("len", strconv.Itoa(resDump.Len())),
-				slog.String("body", "\n"+resDumpString),
-			)
-
-			// redirect test output to real output
-			for k, v := range wt.Header() {
-				w.Header()[k] = v
-			}
-			w.WriteHeader(wt.Code)
-			_, _ = wt.Body.WriteTo(w)
-			return
-		}
-
-		// run without full debug
-		w.Header().Set("Ext", "")
+		logger.DebugRequest(r, true, false)
 		w.Header().Set("Server", s.ServerHeader)
 		next.ServeHTTP(w, r)
 	}

@@ -2,7 +2,6 @@ package contentdirectory
 
 import (
 	"encoding/xml"
-	"github.com/szonov/godlna/internal/backend"
 	"github.com/szonov/godlna/upnp/events"
 )
 
@@ -13,7 +12,7 @@ const (
 
 var (
 	serviceDescriptionXML []byte
-	serviceState          *events.State
+	eventManager          *events.Manager
 )
 
 func Init() (err error) {
@@ -31,10 +30,7 @@ func Init() (err error) {
 			eventfulVariables = append(eventfulVariables, st.Name)
 		}
 	}
-	serviceState = events.NewState(eventfulVariables)
-
-	serviceState.SetUint64("SystemUpdateID", backend.GetCurrentUpdateID())
+	eventManager = events.NewManager()
 	doc = nil
-
 	return
 }

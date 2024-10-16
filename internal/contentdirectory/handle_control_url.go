@@ -3,7 +3,6 @@ package contentdirectory
 import (
 	"fmt"
 	"github.com/szonov/godlna/internal/soap"
-	"log/slog"
 	"net/http"
 )
 
@@ -34,7 +33,6 @@ func HandleControlURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Debug("soap", "action", soapAction.Name)
 	f, ok := controlHandlers[soapAction.Name]
 	if !ok {
 		err := fmt.Errorf("unknown action '%s'", soapAction.Name)

@@ -99,8 +99,6 @@ func main() {
 		SsdpInterface:     v4face.Interface,
 		DeviceDescription: deviceDescription,
 		ServerHeader:      serverHeader,
-		Debug:             dlnaserver.DebugLight,
-		//Debug: dlnaserver.DebugFull,
 		BeforeHttpStart: func(s *dlnaserver.Server, mux *http.ServeMux, desc *device.Description) {
 
 			// index

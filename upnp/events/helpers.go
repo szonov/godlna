@@ -102,7 +102,7 @@ func BuildNotificationBody(stateVariables map[string]string) (body []byte, err e
 
 func SendNotification(sid string, seq uint32, u url.URL, body []byte) error {
 
-	slog.Debug("send notification",
+	slog.Debug("notify",
 		slog.String("sid", sid),
 		slog.Uint64("seq", uint64(seq)),
 		slog.String("url", u.String()),

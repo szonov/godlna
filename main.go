@@ -6,7 +6,7 @@ import (
 	"github.com/szonov/godlna/internal/deviceinfo"
 	"github.com/szonov/godlna/internal/dlnaserver"
 	"github.com/szonov/godlna/internal/logger"
-	"github.com/szonov/godlna/internal/network"
+	"github.com/szonov/godlna/internal/net_utils"
 	"github.com/szonov/godlna/upnp/device"
 	"github.com/szonov/godlna/upnp/ssdp"
 	"log/slog"
@@ -28,15 +28,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	scanner := backend.NewScanner()
-	scanner.Scan()
+	backend.Scanner.Scan("0")
 	//return
 
 	// ------------------------------------------------------------
 	// 2. setup device
 	// ------------------------------------------------------------
 
-	v4face := network.DefaultV4Interface()
+	v4face := net_utils.DefaultV4Interface()
 	listenAddress := v4face.ListenAddress(55975)
 	friendlyName := "SZ"
 	serverHeader := dlnaserver.DefaultServerHeader()

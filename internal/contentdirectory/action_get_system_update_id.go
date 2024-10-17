@@ -9,6 +9,6 @@ import (
 
 func actionGetSystemUpdateID(soapAction *soap.Action, w http.ResponseWriter, r *http.Request) {
 
-	soap.SendActionResponse(soapAction, fmt.Sprintf("<Id>%s</Id>", backend.GetSystemUpdateId().String()), w)
+	soap.SendActionResponse(soapAction, fmt.Sprintf("<Id>%s</Id>", backend.GetSystemUpdateId()), w)
 
 }

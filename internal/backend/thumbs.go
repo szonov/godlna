@@ -135,7 +135,3 @@ func makeThumbnail(src, dest string, squire bool, watchedPercent uint8) (err err
 	err = imaging.Save(dstImage, dest)
 	return
 }
-
-func removeThumbnails(objectID string) {
-	_ = os.RemoveAll(path.Join(CacheDir, "thumbs", strings.Replace(objectID, "$", "/", -1)))
-}

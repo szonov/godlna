@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/szonov/godlna/internal/backend"
 	"github.com/szonov/godlna/internal/client"
-	"github.com/szonov/godlna/internal/logger"
 	"github.com/szonov/godlna/internal/soap"
 	"github.com/szonov/godlna/internal/upnpav"
 	"net/http"
@@ -25,7 +24,7 @@ type argOutBrowse struct {
 	Result         *soap.DIDLLite
 	NumberReturned int
 	TotalMatches   uint64
-	UpdateID       uint64
+	UpdateID       string
 }
 
 func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Request) {
@@ -34,7 +33,6 @@ func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Reques
 		soap.SendError(err, w)
 		return
 	}
-	logger.DebugPointer("[input] Browse", in)
 
 	object := backend.GetObject(in.ObjectID)
 	if object == nil {
@@ -60,7 +58,7 @@ func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Reques
 	}
 
 	out.NumberReturned = len(objects)
-	out.UpdateID = object.UpdateID.Uint64()
+	out.UpdateID = backend.GetSystemUpdateId()
 	out.Result = &soap.DIDLLite{
 		Debug: strings.Contains(r.UserAgent(), "DIDLDebug"),
 	}
@@ -104,7 +102,7 @@ func storageFolder(o *backend.Object) upnpav.Container {
 func videoItem(o *backend.Object, profile *client.Profile) upnpav.Item {
 
 	// generate URLs for thumbnail and video
-	thumbURL := profile.ContentURL("thumb/" + o.UpdateID.String() + "/" + o.ObjectID + ".jpg")
+	thumbURL := profile.ContentURL("thumb/" + o.ObjectID + ".jpg")
 	videoURL := profile.ContentURL("video/" + o.ObjectID + filepath.Ext(o.Path))
 
 	return upnpav.Item{

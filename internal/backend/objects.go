@@ -6,8 +6,8 @@ import (
 	"github.com/szonov/godlna/internal/fs_utils"
 	"github.com/szonov/godlna/internal/types"
 	"log/slog"
+	"os"
 	"path"
-	"strconv"
 	"strings"
 )
 
@@ -30,7 +30,6 @@ type (
 		Type       int
 		Path       string
 		Timestamp  *types.NullableNumber
-		UpdateID   UpdateIdNumber
 		Size       *types.NullableNumber
 		Resolution *types.NullableString
 		Channels   *types.NullableNumber
@@ -42,16 +41,20 @@ type (
 		VideoCodec *types.NullableString
 		AudioCodec *types.NullableString
 	}
-
-	UpdateIdNumber uint64
 )
 
-func (u UpdateIdNumber) Uint64() uint64 {
-	return uint64(u)
+// GetSystemUpdateId is SystemUpdateID for ContentDirectory service
+// Investigations shows that no one DLNA client handle this as described in documentation,
+// even more... my Samsung TVs do not use eventing at all.
+// So, handling update ID for containers and system update id is useless,
+// Supporting real UpdateID only add not necessary complexity to logic of app...
+func GetSystemUpdateId() string {
+	return "10"
 }
 
-func (u UpdateIdNumber) String() string {
-	return strconv.FormatUint(uint64(u), 10)
+// GetObjectCacheDir returns path to directory where all object's cached resources stored
+func GetObjectCacheDir(objectID string) string {
+	return path.Join(CacheDir, "thumbs", strings.Replace(objectID, "$", "/", -1))
 }
 
 func (o *Object) FullPath() string {
@@ -154,7 +157,6 @@ func getFilteredObjects(oid, pid string, limit, offset int64, withTotal bool) ([
 		"FORMAT",      /*13*/
 		"VIDEO_CODEC", /*14*/
 		"AUDIO_CODEC", /*15*/
-		"UPDATE_ID",   /*16*/
 	).
 		From("OBJECTS").
 		Where(where).
@@ -193,7 +195,6 @@ func getFilteredObjects(oid, pid string, limit, offset int64, withTotal bool) ([
 			&item.Format,     /*13*/
 			&item.VideoCodec, /*14*/
 			&item.AudioCodec, /*15*/
-			&item.UpdateID,   /*16*/
 		)
 		if err != nil {
 			slog.Error("scan error", "err", err.Error())
@@ -210,28 +211,11 @@ func SetBookmark(objectID string, posSecond uint64) {
 		// short time slot to remember next time what I watched
 		posSecond -= 8
 	}
-	slog.Debug("set bookmark", "obj", objectID, "pos", posSecond)
 
-	var query string
-	newUpdateID := GetSystemUpdateId() + 1
-
-	// set bookmark
-	query = `UPDATE OBJECTS SET BOOKMARK = ?, UPDATE_ID = ? WHERE OBJECT_ID = ?`
-	if _, err := DB.Exec(query, posSecond, newUpdateID, objectID); err != nil {
+	if _, err := DB.Exec(`UPDATE OBJECTS SET BOOKMARK = ? WHERE OBJECT_ID = ?`, posSecond, objectID); err != nil {
 		slog.Error("set bookmark", "err", err.Error(), "obj", objectID, "pos", posSecond)
 	}
-	// update parents' UPDATE_ID
-	touchParent(objectID, newUpdateID)
-	// set system's setting UPDATE_ID
-	setUpdateID(newUpdateID)
-	// remove thumbnails, should be generated new one
-	removeThumbnails(objectID)
-}
 
-func touchParent(objectID string, newUpdateID UpdateIdNumber) {
-	parentID := GetParentID(objectID)
-	query := `UPDATE OBJECTS SET UPDATE_ID = ? WHERE OBJECT_ID = ?`
-	if _, err := DB.Exec(query, newUpdateID, parentID); err != nil {
-		slog.Error("update parent", "err", err.Error(), "objectID", objectID, "parentID", parentID)
-	}
+	// remove all cached thumbnails, should be generated new one
+	_ = os.RemoveAll(GetObjectCacheDir(objectID))
 }

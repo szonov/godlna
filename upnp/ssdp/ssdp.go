@@ -49,7 +49,7 @@ type Server struct {
 	// Optional: Default is "2/5 * MaxAge"
 	NotifyInterval time.Duration
 
-	// [page 12] To limit network congestion, the time-to-live (TTL) of each
+	// [page 12] To limit net_utils congestion, the time-to-live (TTL) of each
 	// IP packet for each multicast message should default to 4 and should be configurable.
 	// Optional: Default is 4
 	MulticastTTL int
@@ -74,7 +74,7 @@ type Server struct {
 	// Optional: No defaults
 	ServiceList []string
 
-	// Used network interface for ssdp server
+	// Used net_utils interface for ssdp server
 	// I don't need multi-interface support for my purposes
 	// Required: No defaults
 	Interface *net.Interface
@@ -306,9 +306,9 @@ func (s *Server) sendAlive() {
 	for _, target := range s.targets {
 		msg := s.makeAliveMessage(target)
 		// [page 15] Devices should wait a random interval less than 100 milliseconds before sending
-		// an initial set of advertisements in order to reduce the likelihood of network storms;
+		// an initial set of advertisements in order to reduce the likelihood of net_utils storms;
 		// this random interval should also be applied on occasions where the device obtains a
-		// new IP address or a new network interface is installed.
+		// new IP address or a new net_utils interface is installed.
 		delay := time.Duration(rand.Int63n(int64(100 * time.Millisecond)))
 		s.send(msg, s.udpAddr, delay)
 	}

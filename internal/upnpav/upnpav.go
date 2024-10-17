@@ -29,7 +29,7 @@ type Container struct {
 	ChildCount uint64   `xml:"childCount,attr"`
 }
 
-type Bookmark uint64
+type Bookmark int64
 
 func (b Bookmark) MarshalText() ([]byte, error) {
 	return []byte(fmt.Sprintf("BM=%d", b)), nil

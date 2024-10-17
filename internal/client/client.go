@@ -6,14 +6,13 @@ import (
 )
 
 const (
-	DefaultProfile = "general"
-	Samsung4       = "sam4"
-	Samsung5       = "sam5"
+	DefaultProfile = "gen"
+	Samsung4       = "sm4"
+	Samsung5       = "sm5"
 )
 
 type Profile struct {
 	Name string
-	Host string
 }
 
 func (p *Profile) DeviceDescriptionXML(deviceDescTemplate string) string {
@@ -24,28 +23,13 @@ func (p *Profile) UseSquareThumbnails() bool {
 	return p.Name != Samsung4
 }
 
-func (p *Profile) BookmarkStoreValue(reqValue uint64) uint64 {
-	if p.Name == Samsung5 {
-		return reqValue / 1000
-	}
-	return reqValue
-}
-
-func (p *Profile) BookmarkResponseValue(dbValue uint64) uint64 {
-	if p.Name == Samsung5 {
-		return dbValue * 1000
-	}
-	return dbValue
-}
-
-func (p *Profile) ContentURL(uPath string) string {
-	return "http://" + p.Host + "/content/" + p.Name + "/" + uPath
+func (p *Profile) UseBookmarkMilliseconds() bool {
+	return p.Name == Samsung5
 }
 
 func GetProfileByRequest(r *http.Request) *Profile {
 	p := &Profile{
 		Name: DefaultProfile,
-		Host: r.Host,
 	}
 	routeValue := r.PathValue("profile")
 	if routeValue != "" {

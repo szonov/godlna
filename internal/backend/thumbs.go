@@ -8,32 +8,31 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path"
 	"strings"
 	"time"
 
 	"github.com/disintegration/imaging"
-	"github.com/szonov/godlna/internal/client"
 	"github.com/szonov/godlna/internal/fs_utils"
 )
 
-func objectThumbnailPaths(objectID string, profile *client.Profile) (thumbnailPath string, videoFramePath string) {
-	objectPath := strings.Replace(objectID, "$", "/", -1)
-	thumbnailPath = path.Join(CacheDir, "thumbs", objectPath, profile.Name+".jpg")
-	videoFramePath = path.Join(CacheDir, "thumbs", objectPath, "video-frame.jpg")
-	return
-}
+func GetThumbnail(objectID string, squire bool) (thumbnailPath string, t time.Time, err error) {
 
-func GetThumbnail(objectID string, profile *client.Profile) (imPath string, t time.Time, err error) {
-
-	thumbnailPath, videoFramePath := objectThumbnailPaths(objectID, profile)
+	t = time.Now()
+	objCacheDir := GetObjectCacheDir(objectID)
+	videoFramePath := objCacheDir + "/video.jpg"
+	if squire {
+		thumbnailPath = objCacheDir + "/square.jpg"
+	} else {
+		thumbnailPath = objCacheDir + "/normal.jpg"
+	}
 
 	var statInfo os.FileInfo
 	if statInfo, err = os.Stat(thumbnailPath); err != nil && os.IsNotExist(err) {
 		var object *Object
 
 		if object = GetObject(objectID); object == nil {
-			return "", time.Now(), fmt.Errorf("object not found '%s'", objectID)
+			err = fmt.Errorf("object not found '%s'", objectID)
+			return
 		}
 
 		watchedPercent := object.Bookmark.PercentOf(object.Duration)
@@ -41,29 +40,25 @@ func GetThumbnail(objectID string, profile *client.Profile) (imPath string, t ti
 		if watchedPercent > 0 && watchedPercent < 100 {
 			thumbTimeSeek = object.Bookmark.String()
 		}
-
-		err = grabVideoFrame(object.FullPath(), videoFramePath, thumbTimeSeek)
-		if err != nil {
-			return "", time.Now(), err
+		if err = grabVideoFrame(object.FullPath(), videoFramePath, thumbTimeSeek); err != nil {
+			return
 		}
-
-		err = makeThumbnail(videoFramePath, thumbnailPath, profile.UseSquareThumbnails(), watchedPercent)
-		if err != nil {
-			return "", time.Now(), err
+		if err = makeThumbnail(videoFramePath, thumbnailPath, squire, watchedPercent); err != nil {
+			return
 		}
-		statInfo, err = os.Stat(thumbnailPath)
-		if err != nil {
-			return "", time.Now(), fmt.Errorf("generated thumb not found '%s'", thumbnailPath)
+		if statInfo, err = os.Stat(thumbnailPath); err != nil {
+			err = fmt.Errorf("generated thumb not found '%s' : %w", thumbnailPath, err)
+			return
 		}
 	}
-
-	return thumbnailPath, statInfo.ModTime(), nil
+	t = statInfo.ModTime()
+	return
 }
 
 func grabVideoFrame(src, dest string, timeSeek string) (err error) {
 
 	if !fs_utils.FileExists(dest) {
-		slog.Debug("grabVideoFrame", "src", src, "dest", dest, "timeSeek", timeSeek)
+		//slog.Debug("grabVideoFrame", "src", src, "dest", dest, "timeSeek", timeSeek)
 
 		if err = fs_utils.EnsureDirectoryExistsForFile(dest); err != nil {
 			return err
@@ -94,7 +89,6 @@ func makeThumbnail(src, dest string, squire bool, watchedPercent uint8) (err err
 	if srcImg, err = imaging.Open(src); err != nil {
 		return err
 	}
-
 	if squire {
 		dstImage = imaging.Thumbnail(srcImg, thumbWidth, thumbWidth, imaging.Lanczos)
 	} else {

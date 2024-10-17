@@ -65,7 +65,7 @@ func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Reques
 
 	for _, o := range objects {
 		if o.Type == backend.Video {
-			out.Result.Append(videoItem(o, profile))
+			out.Result.Append(videoItem(o, r.Host, profile))
 		} else {
 			out.Result.Append(storageFolder(o))
 		}
@@ -99,11 +99,25 @@ func storageFolder(o *backend.Object) upnpav.Container {
 	}
 }
 
-func videoItem(o *backend.Object, profile *client.Profile) upnpav.Item {
+func videoItem(o *backend.Object, host string, profile *client.Profile) upnpav.Item {
 
-	// generate URLs for thumbnail and video
-	thumbURL := profile.ContentURL("thumb/" + o.ObjectID + ".jpg")
-	videoURL := profile.ContentURL("video/" + o.ObjectID + filepath.Ext(o.Path))
+	// thumbnail type (normal/square)
+	thumbType := "n"
+	if profile.UseSquareThumbnails() {
+		thumbType = "s"
+	}
+
+	// URLs for thumbnail and video
+	thumbURL := fmt.Sprintf("http://%s/t/%s/%s.jpg", host, thumbType, o.ObjectID)
+	videoURL := fmt.Sprintf("http://%s/v/%s%s", host, o.ObjectID, filepath.Ext(o.Path))
+
+	// bookmark
+	var bookmark int64
+	if profile.UseBookmarkMilliseconds() {
+		bookmark = o.Bookmark.Duration().Milliseconds()
+	} else {
+		bookmark = int64(o.Bookmark.Duration().Seconds())
+	}
 
 	return upnpav.Item{
 		Object: upnpav.Object{
@@ -116,7 +130,7 @@ func videoItem(o *backend.Object, profile *client.Profile) upnpav.Item {
 			AlbumArtURI: &upnpav.AlbumArtURI{Value: thumbURL, Profile: "JPEG_TN"},
 		},
 
-		Bookmark: upnpav.Bookmark(profile.BookmarkResponseValue(o.Bookmark.Uint64())),
+		Bookmark: upnpav.Bookmark(bookmark),
 
 		Res: []upnpav.Resource{
 			{

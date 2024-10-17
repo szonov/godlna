@@ -21,6 +21,9 @@ func actionSetBookmark(soapAction *soap.Action, w http.ResponseWriter, r *http.R
 		soap.SendError(err, w)
 		return
 	}
-	backend.SetBookmark(in.ObjectID, client.GetProfileByRequest(r).BookmarkStoreValue(in.PosSecond))
+	if client.GetProfileByRequest(r).UseBookmarkMilliseconds() {
+		in.PosSecond /= 1000
+	}
+	backend.SetBookmark(in.ObjectID, in.PosSecond)
 	soap.SendActionResponse(soapAction, nil, w)
 }

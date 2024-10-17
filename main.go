@@ -58,9 +58,9 @@ func main() {
 				{
 					ServiceType: contentdirectory.ServiceType,
 					ServiceId:   contentdirectory.ServiceId,
-					SCPDURL:     "/ContentDirectory/desc.xml",
-					ControlURL:  "/ContentDirectory/{profile}/ctl",
-					EventSubURL: "/ContentDirectory/{profile}/evt",
+					SCPDURL:     "/cds/desc.xml",
+					ControlURL:  "/cds/{profile}/ctl",
+					EventSubURL: "/cds/{profile}/evt",
 				},
 			},
 			PresentationURL: "http://" + listenAddress + "/",
@@ -113,13 +113,13 @@ func main() {
 			mux.HandleFunc("/device/icons/", s.Hook(deviceinfo.HandleIcons))
 
 			// content directory
-			mux.HandleFunc("/ContentDirectory/desc.xml", s.Hook(contentdirectory.HandleSCPDURL))
-			mux.HandleFunc("/ContentDirectory/{profile}/ctl", s.Hook(contentdirectory.HandleControlURL))
-			mux.HandleFunc("/ContentDirectory/{profile}/evt", s.Hook(contentdirectory.HandleEventSubURL))
+			mux.HandleFunc("/cds/desc.xml", s.Hook(contentdirectory.HandleSCPDURL))
+			mux.HandleFunc("/cds/{profile}/ctl", s.Hook(contentdirectory.HandleControlURL))
+			mux.HandleFunc("/cds/{profile}/evt", s.Hook(contentdirectory.HandleEventSubURL))
 
 			// content
-			mux.HandleFunc("/content/{profile}/thumb/{path...}", s.Hook(contentdirectory.HandleThumbnailURL))
-			mux.HandleFunc("/content/{profile}/video/{path...}", s.Hook(contentdirectory.HandleVideoURL))
+			mux.HandleFunc("/t/{path...}", s.Hook(contentdirectory.HandleThumbnailURL))
+			mux.HandleFunc("/v/{path...}", s.Hook(contentdirectory.HandleVideoURL))
 		},
 	}
 

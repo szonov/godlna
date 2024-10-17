@@ -2,7 +2,7 @@ package contentdirectory
 
 import (
 	"github.com/szonov/godlna/internal/backend"
-	"github.com/szonov/godlna/internal/fs_util"
+	"github.com/szonov/godlna/internal/fs_utils"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,7 +15,7 @@ func HandleVideoURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	objectId := fs_util.NameWithoutExtension(video)
+	objectId := fs_utils.NameWithoutExtension(video)
 	object := backend.GetObject(objectId)
 
 	if object == nil {

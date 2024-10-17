@@ -1,4 +1,4 @@
-package fs_util
+package fs_utils
 
 import (
 	"os"

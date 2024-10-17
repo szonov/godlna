@@ -3,7 +3,7 @@ package backend
 import (
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/szonov/godlna/internal/fs_util"
+	"github.com/szonov/godlna/internal/fs_utils"
 	"path"
 	"path/filepath"
 )
@@ -15,10 +15,10 @@ func Init(media, cache string) (err error) {
 	if CacheDir, err = filepath.Abs(cache); err != nil {
 		return
 	}
-	if err = fs_util.EnsureDirectoryExists(MediaDir); err != nil {
+	if err = fs_utils.EnsureDirectoryExists(MediaDir); err != nil {
 		return
 	}
-	if err = fs_util.EnsureDirectoryExists(CacheDir); err != nil {
+	if err = fs_utils.EnsureDirectoryExists(CacheDir); err != nil {
 		return
 	}
 	if DB, err = sql.Open("sqlite3", path.Join(CacheDir, "db.sqlite")); err != nil {

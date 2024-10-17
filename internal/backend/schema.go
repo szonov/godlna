@@ -41,12 +41,3 @@ func createSchema() (err error) {
 
 	return
 }
-
-// execQuery executes query only if err is nil and returns err
-func execQuery(err error, query string, args ...interface{}) error {
-	if err != nil {
-		return err
-	}
-	_, err = DB.Exec(query, args...)
-	return err
-}

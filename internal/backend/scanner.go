@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -13,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/szonov/godlna/internal/fs_util"
+	"github.com/szonov/godlna/internal/fs_utils"
 
 	sq "github.com/Masterminds/squirrel"
 	"gopkg.in/vansante/go-ffprobe.v2"
@@ -58,7 +59,16 @@ func (s *Scanner) beforeScan() (err error) {
 	s.newUpdateID = s.lastUpdateID + 1
 	return
 }
+
 func (s *Scanner) afterScan() (err error) {
+	for {
+		if !s.clearOneDeletedFolder() {
+			break
+		}
+	}
+
+	slog.Debug("After scan media dir", "UPDATE_ID", s.newUpdateID)
+
 	if newUpdateId := getMaxUpdateID(); newUpdateId > s.lastUpdateID {
 		setUpdateID(newUpdateId)
 		s.lastUpdateID = newUpdateId
@@ -71,6 +81,101 @@ func (s *Scanner) afterScan() (err error) {
 
 	return
 }
+
+// clearOneDeletedFolder and returns bool:
+// - true - folder deleted, required to run again this method to delete next folder
+// - false - error happens or no more folders to delete, mean stop folder deletion
+func (s *Scanner) clearOneDeletedFolder() bool {
+	var objectID string
+	var query string
+	var err error
+
+	// select first folder
+	query = `SELECT OBJECT_ID FROM OBJECTS WHERE TO_DELETE = 1 AND TYPE = ? ORDER BY ID LIMIT 1`
+	if err = DB.QueryRow(query, Folder).Scan(&objectID); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			slog.Error("select folder to_delete", "err", err.Error())
+		}
+		return false
+	}
+
+	// delete folder and its children from database
+	query = `DELETE FROM OBJECTS WHERE OBJECT_ID = ? OR OBJECT_ID like ?`
+	if _, err = DB.Exec(query, objectID, objectID+"$%"); err != nil {
+		slog.Error("remove folder to_delete", "err", err.Error(), "objectID", objectID)
+		return false
+	}
+	// remove thumbnails cache of object and children
+	removeThumbnails(objectID)
+
+	// increment parent's updateID
+	touchParent(objectID, s.newUpdateID)
+
+	return true
+}
+func (s *Scanner) clearAllDeletedFiles() {
+	var query string
+	var err error
+	var rows *sql.Rows
+
+	query = `SELECT OBJECT_ID, PARENT_ID FROM OBJECTS WHERE TO_DELETE = 1 AND TYPE = ?`
+	rows, err = DB.Query(query, Video)
+	if err != nil {
+		slog.Error("clear video to_delete", "err", err.Error())
+		return
+	}
+	defer func(rows *sql.Rows) {
+		err = rows.Close()
+		if err != nil {
+			slog.Error("clear video to_delete :: rows.Close", "err", err.Error())
+		}
+	}(rows)
+
+	for rows.Next() {
+		var (
+			objectID string
+			parentID string
+		)
+
+		if err = rows.Scan(&objectID, &parentID); err != nil {
+			slog.Error("clear video to_delete :: rows.Scan", "err", err.Error())
+			return
+		}
+	}
+	//if !rows.NextResultSet() {
+	//	log.Fatalf("expected more result sets: %v", rows.Err())
+	//}
+	//var roleMap = map[int64]string{1: "user", 2: "admin", 3: "gopher"}
+	//for rows.Next() {
+	//	var (
+	//		id int64 role int64
+	//	)
+	//	if err := rows.Scan(&id, &role); err != nil {
+	//		log.Fatal(err)
+	//	}
+	//	log.Printf("id %d has role %s\n", id, roleMap[role])
+	//}
+	//if err := rows.Err(); err != nil {
+	//	log.Fatal(err)
+	//}
+	//.Scan(&objectID)
+	//err != nil{
+	//	if !errors.Is(err, sql.ErrNoRows){
+	//	slog.Error("select folder to_delete", "err", err.Error())
+	//}
+	//	return false
+	//}
+}
+
+func removeObjectWithChildren(objectID string) (err error) {
+	query := `DELETE FROM OBJECTS WHERE OBJECT_ID = ? OR OBJECT_ID like ?`
+	if _, err = DB.Exec(query, objectID, objectID+"$%"); err != nil {
+		slog.Error("removeObjectWithChildren", "err", err.Error(), "objectID", objectID)
+	}
+	removeThumbnails(objectID)
+	return
+}
+
 func (s *Scanner) readDir(dir string) error {
 	var entries []fs.DirEntry
 	var info fs.FileInfo
@@ -100,7 +205,7 @@ func (s *Scanner) readDir(dir string) error {
 		}
 
 		// video
-		if fs_util.IsVideoFile(entry.Name()) {
+		if fs_utils.IsVideoFile(entry.Name()) {
 			if err = s.checkVideo(fullPath, info); err != nil {
 				slog.Info("video file add problem", "path", fullPath, "err", err.Error())
 			}

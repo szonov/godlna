@@ -2,15 +2,13 @@ package backend
 
 import (
 	"database/sql"
-	"fmt"
+	sq "github.com/Masterminds/squirrel"
+	"github.com/szonov/godlna/internal/fs_utils"
+	"github.com/szonov/godlna/internal/types"
 	"log/slog"
 	"path"
 	"strconv"
 	"strings"
-	"time"
-
-	sq "github.com/Masterminds/squirrel"
-	"github.com/szonov/godlna/internal/fs_util"
 )
 
 const (
@@ -31,23 +29,20 @@ type (
 		ParentID   string
 		Type       int
 		Path       string
-		Timestamp  *NullableNumber
+		Timestamp  *types.NullableNumber
 		UpdateID   UpdateIdNumber
-		Size       *NullableNumber
-		Resolution *NullableString
-		Channels   *NullableNumber
-		SampleRate *NullableNumber
-		BitRate    *NullableNumber
-		Bookmark   *Duration
-		Duration   *Duration
-		Format     *NullableString
-		VideoCodec *NullableString
-		AudioCodec *NullableString
+		Size       *types.NullableNumber
+		Resolution *types.NullableString
+		Channels   *types.NullableNumber
+		SampleRate *types.NullableNumber
+		BitRate    *types.NullableNumber
+		Bookmark   *types.Duration
+		Duration   *types.Duration
+		Format     *types.NullableString
+		VideoCodec *types.NullableString
+		AudioCodec *types.NullableString
 	}
 
-	Duration       int64
-	NullableNumber int64
-	NullableString string
 	UpdateIdNumber uint64
 )
 
@@ -93,88 +88,11 @@ func (o *Object) Title() string {
 	if o.Type == Folder {
 		return path.Base(o.Path)
 	}
-	return fs_util.NameWithoutExtension(path.Base(o.Path))
+	return fs_utils.NameWithoutExtension(path.Base(o.Path))
 }
 
 func (o *Object) Children(limit, offset int64) ([]*Object, uint64) {
 	return getFilteredObjects("", o.ObjectID, limit, offset, true)
-}
-
-func (d *Duration) Duration() time.Duration {
-	if d != nil {
-		return time.Duration(int64(*d) * int64(time.Second))
-	}
-	return 0
-}
-
-func (d *Duration) Uint64() uint64 {
-	if d != nil {
-		return uint64(*d)
-	}
-	return 0
-}
-
-func (d *Duration) String() string {
-	dur := d.Duration()
-	ms := dur.Milliseconds() % 1000
-	s := int(dur.Seconds()) % 60
-	m := int(dur.Minutes()) % 60
-	h := int(dur.Hours())
-
-	return fmt.Sprintf("%d:%02d:%02d.%03d", h, m, s, ms)
-}
-
-func (d *Duration) PercentOf(full *Duration) uint8 {
-	dLen := d.Uint64()
-	fullLen := full.Uint64()
-	if dLen > fullLen {
-		return 100
-	}
-	if dLen > 0 && fullLen > 0 {
-		return uint8(100 * dLen / fullLen)
-	}
-	return 0
-}
-
-func (n *NullableNumber) String() string {
-	return fmt.Sprintf("%d", n.Int64())
-}
-
-func (n *NullableNumber) Uint64() uint64 {
-	if n != nil {
-		return uint64(*n)
-	}
-	return 0
-}
-func (n *NullableNumber) Int() int {
-	if n != nil {
-		return int(*n)
-	}
-	return 0
-}
-func (n *NullableNumber) Uint() uint {
-	if n != nil {
-		return uint(*n)
-	}
-	return 0
-}
-
-func (n *NullableNumber) Int64() int64 {
-	if n != nil {
-		return int64(*n)
-	}
-	return 0
-}
-
-func (n *NullableNumber) Time() time.Time {
-	return time.Unix(n.Int64(), 0)
-}
-
-func (s *NullableString) String() string {
-	if s != nil {
-		return string(*s)
-	}
-	return ""
 }
 
 func GetObject(objectID string) *Object {
@@ -316,12 +234,4 @@ func touchParent(objectID string, newUpdateID UpdateIdNumber) {
 	if _, err := DB.Exec(query, newUpdateID, parentID); err != nil {
 		slog.Error("update parent", "err", err.Error(), "objectID", objectID, "parentID", parentID)
 	}
-}
-
-func RemoveObjectWithChildren(objectID string) {
-	query := `DELETE FROM OBJECTS WHERE OBJECT_ID = ? OR OBJECT_ID like ?`
-	if _, err := DB.Exec(query, objectID, objectID+"$%"); err != nil {
-		slog.Error("delete object parent", "err", err.Error(), "objectID", objectID)
-	}
-	removeThumbnails(objectID)
 }

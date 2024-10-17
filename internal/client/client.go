@@ -38,6 +38,10 @@ func (p *Profile) BookmarkResponseValue(dbValue uint64) uint64 {
 	return dbValue
 }
 
+func (p *Profile) ContentURL(uPath string) string {
+	return "http://" + p.Host + "/content/" + p.Name + "/" + uPath
+}
+
 func GetProfileByRequest(r *http.Request) *Profile {
 	p := &Profile{
 		Name: DefaultProfile,

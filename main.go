@@ -8,6 +8,7 @@ import (
 	"github.com/szonov/godlna/internal/logger"
 	"github.com/szonov/godlna/internal/network"
 	"github.com/szonov/godlna/upnp/device"
+	"github.com/szonov/godlna/upnp/ssdp"
 	"log/slog"
 	"net/http"
 	"os"
@@ -99,26 +100,27 @@ func main() {
 		SsdpInterface:     v4face.Interface,
 		DeviceDescription: deviceDescription,
 		ServerHeader:      serverHeader,
-		BeforeHttpStart: func(s *dlnaserver.Server, mux *http.ServeMux, desc *device.Description) {
-
+		OnHttpRequest: func(s *dlnaserver.Server, next http.HandlerFunc, w http.ResponseWriter, r *http.Request) {
+			logger.DebugRequest(r, false, false)
+			w.Header().Set("Server", s.ServerHeader)
+			next.ServeHTTP(w, r)
+		},
+		BeforeStart: func(s *dlnaserver.Server, mux *http.ServeMux, s_ *ssdp.Server) {
 			// index
-			mux.HandleFunc("/", s.HookFunc(deviceinfo.HandlePresentationURL))
+			mux.HandleFunc("/", s.Hook(deviceinfo.HandlePresentationURL))
 
 			// device
-			mux.HandleFunc("/device/desc.xml", s.HookFunc(deviceinfo.HandleDeviceDescriptionURL))
-			mux.HandleFunc("/device/icons/", s.HookFunc(deviceinfo.HandleIcons))
+			mux.HandleFunc("/device/desc.xml", s.Hook(deviceinfo.HandleDeviceDescriptionURL))
+			mux.HandleFunc("/device/icons/", s.Hook(deviceinfo.HandleIcons))
 
 			// content directory
-			mux.HandleFunc("/ContentDirectory/desc.xml", s.HookFunc(contentdirectory.HandleSCPDURL))
-			mux.HandleFunc("/ContentDirectory/{profile}/ctl", s.HookFunc(contentdirectory.HandleControlURL))
-			mux.HandleFunc("/ContentDirectory/{profile}/evt", s.HookFunc(contentdirectory.HandleEventSubURL))
+			mux.HandleFunc("/ContentDirectory/desc.xml", s.Hook(contentdirectory.HandleSCPDURL))
+			mux.HandleFunc("/ContentDirectory/{profile}/ctl", s.Hook(contentdirectory.HandleControlURL))
+			mux.HandleFunc("/ContentDirectory/{profile}/evt", s.Hook(contentdirectory.HandleEventSubURL))
 
 			// content
-			mux.HandleFunc("/content/{profile}/thumb/{path...}", s.HookFunc(contentdirectory.HandleThumbnailURL))
-			mux.HandleFunc("/content/{profile}/video/{path...}", s.HookFunc(contentdirectory.HandleVideoURL))
-
-			//mux.HandleFunc("/thumbs/{profile}/{image}", s.HookFunc(contentdirectory.HandleThumbnailURL))
-			//mux.HandleFunc("/video/{profile}/{video}", s.HookFunc(contentdirectory.HandleVideoURL))
+			mux.HandleFunc("/content/{profile}/thumb/{path...}", s.Hook(contentdirectory.HandleThumbnailURL))
+			mux.HandleFunc("/content/{profile}/video/{path...}", s.Hook(contentdirectory.HandleVideoURL))
 		},
 	}
 

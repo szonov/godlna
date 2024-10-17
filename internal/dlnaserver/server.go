@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/szonov/godlna/internal/logger"
 	"github.com/szonov/godlna/upnp/device"
 	"github.com/szonov/godlna/upnp/ssdp"
 	"log/slog"
@@ -19,7 +18,7 @@ type (
 		// ListenAddress Format ip:port
 		ListenAddress string
 
-		// Description of device, required only if defined SsdpInterface
+		// DeviceDescription description of device, required only if defined SsdpInterface
 		DeviceDescription *device.Description
 
 		// Optional: Default is "[runtime.GOOS]/[runtime.Version()] UPnP/1.0 GoUPnP/1.0"
@@ -29,13 +28,12 @@ type (
 		// If not defined ssdp server will be disabled
 		SsdpInterface *net.Interface
 
-		// BeforeHttpStart runs before http server start,
-		// place to set up routes
-		BeforeHttpStart func(*Server, *http.ServeMux, *device.Description)
+		// BeforeStart runs before http and ssdp server starts,
+		// place to set up routes, modify configuration of servers
+		BeforeStart func(*Server, *http.ServeMux, *ssdp.Server)
 
-		// BeforeSsdpStart runs before ssdp server start,
-		// place to modify ssdp parameters, executed only if SsdpInterface is defined
-		BeforeSsdpStart func(*ssdp.Server, *device.Description)
+		// OnHttpRequest possibility to inject own code to request processor
+		OnHttpRequest func(*Server, http.HandlerFunc, http.ResponseWriter, *http.Request)
 
 		// private
 		srv        *http.Server
@@ -82,12 +80,8 @@ func (s *Server) ListenAndServe() error {
 		Handler: mux,
 	}
 
-	if s.BeforeSsdpStart != nil && s.ssdpServer != nil {
-		s.BeforeSsdpStart(s.ssdpServer, s.DeviceDescription)
-	}
-
-	if s.BeforeHttpStart != nil {
-		s.BeforeHttpStart(s, mux, s.DeviceDescription)
+	if s.BeforeStart != nil {
+		s.BeforeStart(s, mux, s.ssdpServer)
 	}
 
 	if s.ssdpServer != nil {
@@ -104,16 +98,20 @@ func (s *Server) ListenAndServe() error {
 	return nil
 }
 
-// Hook middleware adds 'Server' header to outgoing responses
-func (s *Server) Hook(next http.HandlerFunc) http.Handler {
-	return s.HookFunc(next)
-}
+// // HookHandler middleware
+//
+//	func (s *Server) HookHandler(next http.HandlerFunc) http.Handler {
+//		return s.Hook(next)
+//	}
+//
 
-// HookFunc middleware adds 'Server' header to outgoing responses
-func (s *Server) HookFunc(next http.HandlerFunc) http.HandlerFunc {
+// Hook middleware adds 'Server' header to outgoing responses
+func (s *Server) Hook(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		logger.DebugRequest(r, true, false)
-		w.Header().Set("Server", s.ServerHeader)
+		if s.OnHttpRequest != nil {
+			s.OnHttpRequest(s, next, w, r)
+			return
+		}
 		next.ServeHTTP(w, r)
 	}
 }

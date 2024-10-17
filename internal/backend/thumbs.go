@@ -14,7 +14,7 @@ import (
 
 	"github.com/disintegration/imaging"
 	"github.com/szonov/godlna/internal/client"
-	"github.com/szonov/godlna/internal/fs_util"
+	"github.com/szonov/godlna/internal/fs_utils"
 )
 
 func objectThumbnailPaths(objectID string, profile *client.Profile) (thumbnailPath string, videoFramePath string) {
@@ -62,10 +62,10 @@ func GetThumbnail(objectID string, profile *client.Profile) (imPath string, t ti
 
 func grabVideoFrame(src, dest string, timeSeek string) (err error) {
 
-	if !fs_util.FileExists(dest) {
+	if !fs_utils.FileExists(dest) {
 		slog.Debug("grabVideoFrame", "src", src, "dest", dest, "timeSeek", timeSeek)
 
-		if err = fs_util.EnsureDirectoryExistsForFile(dest); err != nil {
+		if err = fs_utils.EnsureDirectoryExistsForFile(dest); err != nil {
 			return err
 		}
 
@@ -137,10 +137,5 @@ func makeThumbnail(src, dest string, squire bool, watchedPercent uint8) (err err
 }
 
 func removeThumbnails(objectID string) {
-	dir := path.Join(CacheDir, "thumbs", strings.Replace(objectID, "$", "/", -1))
-	slog.Debug("REMOVE", "dir", dir)
-	err := os.RemoveAll(dir)
-	if err != nil {
-		return
-	}
+	_ = os.RemoveAll(path.Join(CacheDir, "thumbs", strings.Replace(objectID, "$", "/", -1)))
 }

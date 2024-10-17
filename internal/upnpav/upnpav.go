@@ -2,6 +2,7 @@ package upnpav
 
 import (
 	"encoding/xml"
+	"fmt"
 )
 
 const (
@@ -28,12 +29,18 @@ type Container struct {
 	ChildCount uint64   `xml:"childCount,attr"`
 }
 
+type Bookmark uint64
+
+func (b Bookmark) MarshalText() ([]byte, error) {
+	return []byte(fmt.Sprintf("BM=%d", b)), nil
+}
+
 // Item description
 type Item struct {
 	Object
-	XMLName xml.Name `xml:"item"`
-	Res     []Resource
-	DcmInfo string `xml:"sec:dcmInfo,omitempty"`
+	XMLName  xml.Name `xml:"item"`
+	Res      []Resource
+	Bookmark Bookmark `xml:"sec:dcmInfo,omitempty"`
 }
 
 type AlbumArtURI struct {

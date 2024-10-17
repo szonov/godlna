@@ -9,7 +9,6 @@ import (
 	"github.com/szonov/godlna/internal/upnpav"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -104,17 +103,9 @@ func storageFolder(o *backend.Object) upnpav.Container {
 
 func videoItem(o *backend.Object, profile *client.Profile) upnpav.Item {
 
-	updateIdStr := strconv.Itoa(int(o.UpdateID))
-
 	// generate URLs for thumbnail and video
-	thumbURL := "http://" + profile.Host + "/content/" + profile.Name + "/thumb/" + updateIdStr + "/" + o.ObjectID + ".jpg"
-	videoURL := "http://" + profile.Host + "/content/" + profile.Name + "/video/" + o.ObjectID + filepath.Ext(o.Path)
-
-	// bookmark
-	var dcmInfo string
-	if o.Bookmark != nil && o.Bookmark.Uint64() > 0 {
-		dcmInfo = fmt.Sprintf("BM=%d", profile.BookmarkResponseValue(o.Bookmark.Uint64()))
-	}
+	thumbURL := profile.ContentURL("thumb/" + o.UpdateID.String() + "/" + o.ObjectID + ".jpg")
+	videoURL := profile.ContentURL("video/" + o.ObjectID + filepath.Ext(o.Path))
 
 	return upnpav.Item{
 		Object: upnpav.Object{
@@ -126,7 +117,9 @@ func videoItem(o *backend.Object, profile *client.Profile) upnpav.Item {
 			Date:        o.Timestamp.Time().Format("2006-01-02T15:04:05"),
 			AlbumArtURI: &upnpav.AlbumArtURI{Value: thumbURL, Profile: "JPEG_TN"},
 		},
-		DcmInfo: dcmInfo,
+
+		Bookmark: upnpav.Bookmark(profile.BookmarkResponseValue(o.Bookmark.Uint64())),
+
 		Res: []upnpav.Resource{
 			{
 				URL:             videoURL,

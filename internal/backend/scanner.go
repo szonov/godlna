@@ -304,14 +304,3 @@ func (s *scanner) removeToDeleteFlag(relPath string, oType int) (removed bool) {
 	removed = affectedCount > 0
 	return
 }
-
-//func GetParentID(objectID string) string {
-//	i := strings.LastIndex(objectID, "$")
-//	if i > -1 {
-//		return objectID[:i]
-//	}
-//	if objectID == "0" {
-//		return "-1"
-//	}
-//	return "0"
-//}

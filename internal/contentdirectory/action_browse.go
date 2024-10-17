@@ -112,11 +112,11 @@ func videoItem(o *backend.Object, host string, profile *client.Profile) upnpav.I
 	videoURL := fmt.Sprintf("http://%s/v/%s%s", host, o.ObjectID, filepath.Ext(o.Path))
 
 	// bookmark
-	var bookmark int64
+	var bookmark upnpav.Bookmark
 	if profile.UseBookmarkMilliseconds() {
-		bookmark = o.Bookmark.Duration().Milliseconds()
+		bookmark = upnpav.Bookmark(o.Bookmark.Duration().Milliseconds())
 	} else {
-		bookmark = int64(o.Bookmark.Duration().Seconds())
+		bookmark = upnpav.Bookmark(o.Bookmark.Duration().Seconds())
 	}
 
 	return upnpav.Item{
@@ -130,7 +130,7 @@ func videoItem(o *backend.Object, host string, profile *client.Profile) upnpav.I
 			AlbumArtURI: &upnpav.AlbumArtURI{Value: thumbURL, Profile: "JPEG_TN"},
 		},
 
-		Bookmark: upnpav.Bookmark(bookmark),
+		Bookmark: bookmark,
 
 		Res: []upnpav.Resource{
 			{

@@ -24,8 +24,6 @@ func Init(media, cache string) (err error) {
 	if DB, err = sql.Open("sqlite3", path.Join(CacheDir, "db.sqlite")); err != nil {
 		return
 	}
-	if err = createSchema(); err != nil {
-		return
-	}
+	err = createSchema()
 	return
 }

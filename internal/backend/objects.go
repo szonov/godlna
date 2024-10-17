@@ -187,6 +187,6 @@ func SetBookmark(objectID string, posSecond uint64) {
 		slog.Error("set bookmark", "err", err.Error(), "obj", objectID, "pos", posSecond)
 	}
 
-	// remove all cached thumbnails, should be generated new one
+	// remove all cached thumbnails (bookmark value used for generation thumbnail)
 	_ = os.RemoveAll(GetObjectCacheDir(objectID))
 }

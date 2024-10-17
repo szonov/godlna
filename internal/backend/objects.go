@@ -2,7 +2,6 @@ package backend
 
 import (
 	"database/sql"
-	sq "github.com/Masterminds/squirrel"
 	"github.com/szonov/godlna/internal/fs_utils"
 	"github.com/szonov/godlna/internal/types"
 	"log/slog"
@@ -95,53 +94,33 @@ func (o *Object) Title() string {
 }
 
 func (o *Object) Children(limit, offset int64) ([]*Object, uint64) {
-	return getFilteredObjects("", o.ObjectID, limit, offset, true)
+	var totalCount uint64
+	q := `SELECT COUNT(*) FROM OBJECTS WHERE PARENT_ID = ?`
+	if err := DB.QueryRow(q, o.ObjectID).Scan(&totalCount); err != nil || totalCount == 0 {
+		return make([]*Object, 0), 0
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	return getFilteredObjects("PARENT_ID", o.ObjectID, limit, offset), totalCount
 }
 
 func GetObject(objectID string) *Object {
-	objects, _ := getFilteredObjects(objectID, "", 1, 0, false)
-	if len(objects) == 1 {
-		return objects[0]
+	o := getFilteredObjects("OBJECT_ID", objectID, 1, 0)
+	if len(o) > 0 {
+		return o[0]
 	}
 	return nil
 }
 
-func getFilteredObjects(oid, pid string, limit, offset int64, withTotal bool) ([]*Object, uint64) {
-
-	var err error
+func getFilteredObjects(f, v string, limit, offset int64) []*Object {
 	var rows *sql.Rows
-	var where sq.Eq
-
-	var totalCount uint64
+	var err error
 	items := make([]*Object, 0)
-
-	if oid != "" {
-		// find exact object
-		where = sq.Eq{"OBJECT_ID": oid}
-	} else if pid != "" {
-		// find children
-		where = sq.Eq{"PARENT_ID": pid}
-	} else {
-		// empty search result
-		return items, totalCount
-	}
-
-	if withTotal {
-		err = sq.Select("COUNT(*)").From("OBJECTS").Where(where).RunWith(DB).Scan(&totalCount)
-		if err != nil || totalCount == 0 {
-			return items, totalCount
-		}
-	}
-
-	if offset < 0 {
-		offset = 0
-	}
-
-	if limit <= 0 {
-		limit = 10
-	}
-
-	rows, err = sq.Select(
+	c := strings.Join([]string{
 		"OBJECT_ID",   /*1*/
 		"PARENT_ID",   /*2*/
 		"TYPE",        /*3*/
@@ -157,23 +136,16 @@ func getFilteredObjects(oid, pid string, limit, offset int64, withTotal bool) ([
 		"FORMAT",      /*13*/
 		"VIDEO_CODEC", /*14*/
 		"AUDIO_CODEC", /*15*/
-	).
-		From("OBJECTS").
-		Where(where).
-		OrderBy("TYPE", "PATH").
-		Limit(uint64(limit)).
-		Offset(uint64(offset)).
-		RunWith(DB).Query()
-
-	if err != nil {
-		slog.Error("select OBJECTS", "err", err.Error())
-		return items, totalCount
+	}, ",")
+	q := "SELECT " + c + " FROM OBJECTS WHERE " + f + " = ? ORDER BY TYPE, PATH LIMIT ? OFFSET ?"
+	if rows, err = DB.Query(q, v, limit, offset); err != nil {
+		slog.Error("objects::select", "err", err.Error())
+		return items
 	}
-
 	defer func(rows *sql.Rows) {
 		err = rows.Close()
 		if err != nil {
-			slog.Debug("rows close error", "err", err.Error())
+			slog.Error("objects::select.rows.close", "err", err.Error())
 		}
 	}(rows)
 
@@ -197,13 +169,12 @@ func getFilteredObjects(oid, pid string, limit, offset int64, withTotal bool) ([
 			&item.AudioCodec, /*15*/
 		)
 		if err != nil {
-			slog.Error("scan error", "err", err.Error())
-			return items, totalCount
+			slog.Error("objects::select.rows.scan", "err", err.Error())
+			return items
 		}
 		items = append(items, item)
 	}
-
-	return items, totalCount
+	return items
 }
 
 func SetBookmark(objectID string, posSecond uint64) {

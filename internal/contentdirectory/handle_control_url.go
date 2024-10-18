@@ -39,5 +39,6 @@ func HandleControlURL(w http.ResponseWriter, r *http.Request) {
 		soap.SendUPnPError(soap.InvalidActionErrorCode, err.Error(), w, http.StatusUnauthorized)
 		return
 	}
+	w.Header().Set("EXT", "")
 	f(soapAction, w, r)
 }

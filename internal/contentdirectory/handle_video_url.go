@@ -6,10 +6,11 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
 )
 
 func HandleVideoURL(w http.ResponseWriter, r *http.Request) {
-	video := r.PathValue("path")
+	video := path.Base(r.PathValue("path"))
 	if video == "" {
 		w.WriteHeader(http.StatusNotFound)
 		return

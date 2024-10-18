@@ -73,7 +73,8 @@ func (o *Object) MimeType() string {
 	format := o.Format.String()
 
 	if strings.Contains(format, "matroska") {
-		return "video/x-matroska"
+		return "video/avi"
+		//return "video/x-matroska"
 	}
 
 	if strings.Contains(format, "avi") {

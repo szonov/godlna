@@ -101,6 +101,8 @@ func storageFolder(o *backend.Object) upnpav.Container {
 
 func videoItem(o *backend.Object, host string, profile *client.Profile) upnpav.Item {
 
+	bm := o.Bookmark.Duration().String()
+
 	// thumbnail type (normal/square)
 	thumbType := "n"
 	if profile.UseSquareThumbnails() {
@@ -108,8 +110,8 @@ func videoItem(o *backend.Object, host string, profile *client.Profile) upnpav.I
 	}
 
 	// URLs for thumbnail and video
-	thumbURL := fmt.Sprintf("http://%s/t/%s/%s.jpg", host, thumbType, o.ObjectID)
-	videoURL := fmt.Sprintf("http://%s/v/%s%s", host, o.ObjectID, filepath.Ext(o.Path))
+	thumbURL := fmt.Sprintf("http://%s/t/%s/%s/%s.jpg", host, bm, thumbType, o.ObjectID)
+	videoURL := fmt.Sprintf("http://%s/v/%s/%s%s", host, bm, o.ObjectID, filepath.Ext(o.Path))
 
 	// bookmark
 	var bookmark upnpav.Bookmark

@@ -5,44 +5,29 @@ import (
 	"strings"
 )
 
-const (
-	DefaultProfile = "gen"
-	Samsung4       = "sm4"
-	Samsung5       = "sm5"
-)
-
-type Profile struct {
-	Name string
+type Features struct {
+	UseSquareThumbnails  bool
+	UseSecondsInBookmark bool
 }
 
-func (p *Profile) DeviceDescriptionXML(deviceDescTemplate string) string {
-	return strings.Replace(deviceDescTemplate, "{profile}", p.Name, -1)
-}
+func GetFeatures(r *http.Request) *Features {
+	agent := r.Header.Get("User-Agent")
 
-func (p *Profile) UseSquareThumbnails() bool {
-	return p.Name != Samsung4
-}
+	// here possible to check Remote IP
+	// but in my environment there is only one special device that is uniquely identified by the user agent
 
-func (p *Profile) UseBookmarkMilliseconds() bool {
-	return p.Name == Samsung5
-}
-
-func GetProfileByRequest(r *http.Request) *Profile {
-	p := &Profile{
-		Name: DefaultProfile,
-	}
-	routeValue := r.PathValue("profile")
-	if routeValue != "" {
-		p.Name = routeValue
-	} else {
-		ua := r.Header.Get("User-Agent")
-		if strings.Contains(ua, "40C7000") {
-			//User-Agent: SEC_HHP_TV-40C7000/1.0
-			p.Name = Samsung4
-		} else if strings.Contains(ua, "Samsung 5 Series") {
-			// User-Agent: DLNADOC/1.50 SEC_HHP_[TV] Samsung 5 Series (55)/1.0 UPnP/1.0
-			p.Name = Samsung5
+	if agent == "DLNADOC/1.50" || strings.Contains(agent, "40C7000") {
+		// User-Agent: SEC_HHP_TV-40C7000/1.0 (when get device description)
+		// User-Agent: DLNADOC/1.50 (when POST content directory control url)
+		return &Features{
+			UseSquareThumbnails:  false,
+			UseSecondsInBookmark: true,
 		}
 	}
-	return p
+	// all others... for example second TV:
+	// User-Agent: DLNADOC/1.50 SEC_HHP_[TV] Samsung 5 Series (55)/1.0 UPnP/1.0
+	return &Features{
+		UseSquareThumbnails:  true,
+		UseSecondsInBookmark: false,
+	}
 }

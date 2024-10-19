@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"sync/atomic"
 )
 
 func main() {
@@ -29,7 +31,6 @@ func main() {
 	}
 
 	backend.Scanner.Scan("0")
-	//return
 
 	// ------------------------------------------------------------
 	// 2. setup device
@@ -59,8 +60,8 @@ func main() {
 					ServiceType: contentdirectory.ServiceType,
 					ServiceId:   contentdirectory.ServiceId,
 					SCPDURL:     "/cds/desc.xml",
-					ControlURL:  "/cds/{profile}/ctl",
-					EventSubURL: "/cds/{profile}/evt",
+					ControlURL:  "/cds/ctl",
+					EventSubURL: "/cds/evt",
 				},
 			},
 			PresentationURL: "http://" + listenAddress + "/",
@@ -94,13 +95,15 @@ func main() {
 	// 4. setup dlna http server
 	// ------------------------------------------------------------
 
+	var requestID int64 = 0
 	dlnaServer := &dlnaserver.Server{
 		ListenAddress:     listenAddress,
 		SsdpInterface:     v4face.Interface,
 		DeviceDescription: deviceDescription,
 		ServerHeader:      serverHeader,
 		OnHttpRequest: func(s *dlnaserver.Server, next http.HandlerFunc, w http.ResponseWriter, r *http.Request) {
-			logger.DebugRequest(r, false, false)
+			r.Header.Set("X-Request-ID", strconv.FormatInt(atomic.AddInt64(&requestID, 1), 10))
+			logger.DebugRequest(r, true, false)
 			w.Header().Set("Server", s.ServerHeader)
 			next.ServeHTTP(w, r)
 		},
@@ -114,8 +117,8 @@ func main() {
 
 			// content directory
 			mux.HandleFunc("/cds/desc.xml", s.Hook(contentdirectory.HandleSCPDURL))
-			mux.HandleFunc("/cds/{profile}/ctl", s.Hook(contentdirectory.HandleControlURL))
-			mux.HandleFunc("/cds/{profile}/evt", s.Hook(contentdirectory.HandleEventSubURL))
+			mux.HandleFunc("/cds/ctl", s.Hook(contentdirectory.HandleControlURL))
+			mux.HandleFunc("/cds/evt", s.Hook(contentdirectory.HandleEventSubURL))
 
 			// content
 			mux.HandleFunc("/t/{path...}", s.Hook(contentdirectory.HandleThumbnailURL))

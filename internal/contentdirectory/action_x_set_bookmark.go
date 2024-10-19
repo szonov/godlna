@@ -3,6 +3,7 @@ package contentdirectory
 import (
 	"github.com/szonov/godlna/internal/backend"
 	"github.com/szonov/godlna/internal/client"
+	"github.com/szonov/godlna/internal/logger"
 	"github.com/szonov/godlna/internal/soap"
 	"net/http"
 )
@@ -21,8 +22,11 @@ func actionSetBookmark(soapAction *soap.Action, w http.ResponseWriter, r *http.R
 		soap.SendError(err, w)
 		return
 	}
-	if client.GetProfileByRequest(r).UseBookmarkMilliseconds() {
-		in.PosSecond /= 1000
+
+	logger.DebugPointer("X_SetBookmark [IN]", in)
+
+	if client.GetFeatures(r).UseSecondsInBookmark {
+		in.PosSecond *= 1000
 	}
 	backend.SetBookmark(in.ObjectID, in.PosSecond)
 	soap.SendActionResponse(soapAction, nil, w)

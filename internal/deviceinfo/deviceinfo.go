@@ -4,7 +4,6 @@ import (
 	"embed"
 	"encoding/xml"
 	"fmt"
-	"github.com/szonov/godlna/internal/client"
 	"github.com/szonov/godlna/internal/soap"
 	"github.com/szonov/godlna/upnp/device"
 	"io/fs"
@@ -15,7 +14,7 @@ import (
 var embedIconsFS embed.FS
 
 var (
-	deviceDescXML  string
+	deviceDescXML  []byte
 	indexHtml      []byte
 	iconFileServer http.Handler
 )
@@ -25,15 +24,11 @@ func Init(desc *device.Description) (err error) {
 		err = fmt.Errorf("device descirition can't be nil")
 		return
 	}
-
-	// device description to XML,
-	// use string, since we will replace urls depended on profile to new one
-	var descXML []byte
-	if descXML, err = xml.Marshal(desc); err != nil {
+	if deviceDescXML, err = xml.Marshal(desc); err != nil {
 		err = fmt.Errorf("marshal device desc error: '%s'", err.Error())
 		return
 	}
-	deviceDescXML = string(append([]byte(xml.Header), descXML...))
+	deviceDescXML = append([]byte(xml.Header), deviceDescXML...)
 
 	// embed file system with icons
 	var sub fs.FS
@@ -51,8 +46,7 @@ func Init(desc *device.Description) (err error) {
 
 func HandleDeviceDescriptionURL(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
-		descXML := client.GetProfileByRequest(r).DeviceDescriptionXML(deviceDescXML)
-		soap.SendXML([]byte(descXML), w)
+		soap.SendXML(deviceDescXML, w)
 	} else {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}

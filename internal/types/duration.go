@@ -9,7 +9,7 @@ type Duration int64
 
 func (d *Duration) Duration() time.Duration {
 	if d != nil {
-		return time.Duration(int64(*d) * int64(time.Second))
+		return time.Duration(int64(*d) * int64(time.Millisecond))
 	}
 	return 0
 }

@@ -47,7 +47,6 @@ func HandleVideoURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("EXT", "")
 	w.Header().Set("transferMode.dlna.org", "Streaming")
 	w.Header().Set("contentFeatures.dlna.org", contentVideoFeatures())
-
 	w.Header().Set("Content-Type", object.MimeType())
 	http.ServeContent(w, r, video, statInfo.ModTime(), file)
 }

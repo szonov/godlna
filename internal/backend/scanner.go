@@ -1,12 +1,11 @@
 package backend
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/szonov/godlna/internal/ffmpeg"
 	"github.com/szonov/godlna/internal/fs_utils"
-	"gopkg.in/vansante/go-ffprobe.v2"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -19,10 +18,11 @@ import (
 )
 
 type scanner struct {
-	oID   string
-	oPath string
-	oType int
-	mu    sync.Mutex
+	oID        string
+	oPath      string
+	oType      int
+	mu         sync.Mutex
+	hasChanges bool
 }
 
 var Scanner = new(scanner)
@@ -85,6 +85,7 @@ func (s *scanner) run() (err error) {
 	}
 	return
 }
+
 func (s *scanner) afterScan() error {
 	levels := s.getLevelsToDelete()
 	for _, level := range levels {
@@ -92,6 +93,11 @@ func (s *scanner) afterScan() error {
 			return err
 		}
 	}
+
+	if s.hasChanges {
+		incrementSystemUpdateId()
+	}
+
 	return nil
 }
 
@@ -155,6 +161,7 @@ func (s *scanner) checkFolder(fullPath string) (err error) {
 		"PATH":      relPath,
 	})
 
+	s.changeHappens(err)
 	return
 }
 
@@ -173,30 +180,19 @@ func (s *scanner) checkVideo(fullPath string, modTime time.Time) (err error) {
 		return
 	}
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelFn()
-
-	var ffdata *ffprobe.ProbeData
-	if ffdata, err = ffprobe.ProbeURL(ctx, fullPath); err != nil {
+	var ffData *ffmpeg.ProbeData
+	ffData, err = ffmpeg.Probe(fullPath)
+	if err != nil {
 		err = fmt.Errorf("ffprobe '%s' : %w", fullPath, err)
 		return
 	}
 
-	vStream := ffdata.FirstVideoStream()
-	aStream := ffdata.FirstAudioStream()
+	vStream := ffData.FirstVideoStream()
+	aStream := ffData.FirstAudioStream()
 
 	if vStream == nil || aStream == nil {
 		err = fmt.Errorf("video or audio steam is empty '%s'", fullPath)
 		return
-	}
-
-	size, _ := strconv.ParseUint(ffdata.Format.Size, 10, 64)
-	sampleRate, _ := strconv.ParseUint(aStream.SampleRate, 10, 64)
-	var bitrate uint64
-	if bitrate, err = strconv.ParseUint(ffdata.Format.BitRate, 10, 64); err == nil {
-		if bitrate > 8 {
-			bitrate = bitrate / 8
-		}
 	}
 
 	err = insertObject(map[string]any{
@@ -205,17 +201,18 @@ func (s *scanner) checkVideo(fullPath string, modTime time.Time) (err error) {
 		"TYPE":        Video,
 		"PATH":        relPath,
 		"TIMESTAMP":   modTime.Unix(),
-		"DURATION":    uint64(ffdata.Format.DurationSeconds),
-		"SIZE":        size,
-		"RESOLUTION":  fmt.Sprintf("%dx%d", vStream.Width, vStream.Height),
+		"DURATION":    ffData.Format.Duration().Milliseconds(),
+		"SIZE":        ffData.Format.Size,
+		"RESOLUTION":  vStream.Resolution(),
 		"CHANNELS":    aStream.Channels,
-		"SAMPLE_RATE": sampleRate,
-		"BITRATE":     bitrate,
-		"FORMAT":      ffdata.Format.FormatName,
+		"SAMPLE_RATE": aStream.SampleRate,
+		"BITRATE":     ffData.Format.BitRate(),
+		"FORMAT":      ffData.Format.FormatName,
 		"VIDEO_CODEC": vStream.CodecName,
 		"AUDIO_CODEC": aStream.CodecName,
 	})
 
+	s.changeHappens(err)
 	return
 }
 
@@ -293,8 +290,9 @@ func (s *scanner) deleteLevel(level int) (err error) {
 }
 
 func (s *scanner) deleteObject(objectID string, parentID string) (err error) {
-	_ = os.RemoveAll(GetObjectCacheDir(objectID))
+	RemoveObjectCache(objectID)
 	err = execQuery(nil, `DELETE FROM OBJECTS WHERE OBJECT_ID = ?`, objectID)
+	s.changeHappens(err)
 	return execQuery(err, `UPDATE OBJECTS SET SIZE = SIZE - 1 WHERE OBJECT_ID = ?`, parentID)
 }
 
@@ -303,4 +301,10 @@ func (s *scanner) removeToDeleteFlag(relPath string, oType int) (removed bool) {
 	affectedCount, _ := execQueryRowsAffected(nil, q, relPath, oType)
 	removed = affectedCount > 0
 	return
+}
+
+func (s *scanner) changeHappens(err error) {
+	if err == nil {
+		s.hasChanges = true
+	}
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/szonov/godlna/internal/upnpav"
 	"net/http"
 	"path/filepath"
-	"strings"
 )
 
 type argInBrowse struct {
@@ -41,7 +40,6 @@ func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Reques
 	}
 
 	out := &argOutBrowse{}
-	profile := client.GetProfileByRequest(r)
 	var objects []*backend.Object
 
 	switch in.BrowseFlag {
@@ -60,12 +58,13 @@ func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Reques
 	out.NumberReturned = len(objects)
 	out.UpdateID = backend.GetSystemUpdateId()
 	out.Result = &soap.DIDLLite{
-		Debug: strings.Contains(r.UserAgent(), "DIDLDebug"),
+		Debug: r.Header.Get("X-Debug") == "1",
 	}
 
+	features := client.GetFeatures(r)
 	for _, o := range objects {
 		if o.Type == backend.Video {
-			out.Result.Append(videoItem(o, r.Host, profile))
+			out.Result.Append(videoItem(o, r.Host, features))
 		} else {
 			out.Result.Append(storageFolder(o))
 		}
@@ -99,13 +98,13 @@ func storageFolder(o *backend.Object) upnpav.Container {
 	}
 }
 
-func videoItem(o *backend.Object, host string, profile *client.Profile) upnpav.Item {
+func videoItem(o *backend.Object, host string, features *client.Features) upnpav.Item {
 
 	bm := o.Bookmark.Duration().String()
 
 	// thumbnail type (normal/square)
 	thumbType := "n"
-	if profile.UseSquareThumbnails() {
+	if features.UseSquareThumbnails {
 		thumbType = "s"
 	}
 
@@ -115,10 +114,11 @@ func videoItem(o *backend.Object, host string, profile *client.Profile) upnpav.I
 
 	// bookmark
 	var bookmark upnpav.Bookmark
-	if profile.UseBookmarkMilliseconds() {
-		bookmark = upnpav.Bookmark(o.Bookmark.Duration().Milliseconds())
-	} else {
+	if features.UseSecondsInBookmark {
 		bookmark = upnpav.Bookmark(o.Bookmark.Duration().Seconds())
+
+	} else {
+		bookmark = upnpav.Bookmark(o.Bookmark.Duration().Milliseconds())
 	}
 
 	return upnpav.Item{

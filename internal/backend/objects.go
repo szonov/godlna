@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"os"
 	"path"
+	"strconv"
 	"strings"
+	"sync/atomic"
 )
 
 const (
@@ -42,18 +44,28 @@ type (
 	}
 )
 
+var systemUpdateId uint64 = 0
+
 // GetSystemUpdateId is SystemUpdateID for ContentDirectory service
 // Investigations shows that no one DLNA client handle this as described in documentation,
 // even more... my Samsung TVs do not use eventing at all.
 // So, handling update ID for containers and system update id is useless,
 // Supporting real UpdateID only add not necessary complexity to logic of app...
 func GetSystemUpdateId() string {
-	return "10"
+	return strconv.FormatUint(systemUpdateId, 10)
+}
+
+func incrementSystemUpdateId() {
+	atomic.AddUint64(&systemUpdateId, 1)
 }
 
 // GetObjectCacheDir returns path to directory where all object's cached resources stored
 func GetObjectCacheDir(objectID string) string {
 	return path.Join(CacheDir, "thumbs", strings.Replace(objectID, "$", "/", -1))
+}
+
+func RemoveObjectCache(objectID string) {
+	_ = os.RemoveAll(GetObjectCacheDir(objectID))
 }
 
 func (o *Object) FullPath() string {
@@ -178,16 +190,11 @@ func getFilteredObjects(f, v string, limit, offset int64) []*Object {
 	return items
 }
 
-func SetBookmark(objectID string, posSecond uint64) {
-	if posSecond > 60 {
-		// short time slot to remember next time what I watched
-		posSecond -= 8
+func SetBookmark(objectID string, bm uint64) {
+	if _, err := DB.Exec(`UPDATE OBJECTS SET BOOKMARK = ? WHERE OBJECT_ID = ?`, bm, objectID); err != nil {
+		slog.Error("set bookmark", "err", err.Error(), "obj", objectID, "pos", bm)
 	}
-
-	if _, err := DB.Exec(`UPDATE OBJECTS SET BOOKMARK = ? WHERE OBJECT_ID = ?`, posSecond, objectID); err != nil {
-		slog.Error("set bookmark", "err", err.Error(), "obj", objectID, "pos", posSecond)
-	}
-
 	// remove all cached thumbnails (bookmark value used for generation thumbnail)
-	_ = os.RemoveAll(GetObjectCacheDir(objectID))
+	RemoveObjectCache(objectID)
+	incrementSystemUpdateId()
 }

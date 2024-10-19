@@ -43,8 +43,6 @@ func HandleThumbnailURL(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("transferMode.dlna.org", "Interactive")
 	w.Header().Set("contentFeatures.dlna.org", contentThumbnailFeatures())
-
-	// thumbnail always jpeg image
 	w.Header().Set("Content-Type", "image/jpeg")
 	http.ServeContent(w, r, imageName, modTime, file)
 }

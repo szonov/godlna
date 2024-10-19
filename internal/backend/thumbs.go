@@ -2,13 +2,11 @@ package backend
 
 import (
 	"fmt"
+	"github.com/szonov/godlna/internal/ffmpeg"
 	"image"
 	"image/color"
 	"image/draw"
-	"log/slog"
 	"os"
-	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/disintegration/imaging"
@@ -35,11 +33,23 @@ func GetThumbnail(objectID string, squire bool) (thumbnailPath string, t time.Ti
 			return
 		}
 
-		watchedPercent := object.Bookmark.PercentOf(object.Duration)
 		thumbTimeSeek := "10"
-		if watchedPercent > 0 && watchedPercent < 100 {
-			thumbTimeSeek = object.Bookmark.String()
+		var watchedPercent uint8 = 0
+
+		if object.Bookmark != nil {
+			// TV set Bookmark = 0 when movie is watched
+			// ... or when jump to bookmark and reset previous (but in this case next operation will be
+			// one of: [1] set new bookmark or [2] set Bookmark = 0 - movie watched)
+			if object.Bookmark.Uint64() == 0 {
+				watchedPercent = 100
+			} else {
+				watchedPercent = object.Bookmark.PercentOf(object.Duration)
+				if watchedPercent > 0 && watchedPercent < 100 {
+					thumbTimeSeek = object.Bookmark.String()
+				}
+			}
 		}
+
 		if err = grabVideoFrame(object.FullPath(), videoFramePath, thumbTimeSeek); err != nil {
 			return
 		}
@@ -55,23 +65,10 @@ func GetThumbnail(objectID string, squire bool) (thumbnailPath string, t time.Ti
 	return
 }
 
-func grabVideoFrame(src, dest string, timeSeek string) (err error) {
-
+func grabVideoFrame(src, dest string, timeToSeek string) (err error) {
 	if !fs_utils.FileExists(dest) {
-		//slog.Debug("grabVideoFrame", "src", src, "dest", dest, "timeSeek", timeSeek)
-
-		if err = fs_utils.EnsureDirectoryExistsForFile(dest); err != nil {
-			return err
-		}
-
-		cmd := exec.Command("ffmpegthumbnailer", "-s", "0", "-q", "10", "-c", "jpeg", "-t", timeSeek,
-			"-i", src, "-o", dest)
-
-		if _, err = cmd.Output(); err != nil {
-			slog.Error("grabVideoFrame",
-				slog.String("cmd", "ffmpegthumbnailer "+strings.Join(cmd.Args, " ")),
-				slog.String("err", err.Error()),
-			)
+		if err = ffmpeg.MakeThumbnail(src, dest, timeToSeek); err != nil {
+			err = fmt.Errorf("failed to generate thumbnail: %w (%s) (%s)", err, src, dest)
 		}
 	}
 	return
@@ -80,7 +77,7 @@ func grabVideoFrame(src, dest string, timeSeek string) (err error) {
 func makeThumbnail(src, dest string, squire bool, watchedPercent uint8) (err error) {
 
 	thumbWidth := 480
-	coloredLineHeight := 20
+	coloredLineHeight := 40
 	spaceAround := 0
 
 	var srcImg image.Image

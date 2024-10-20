@@ -102,6 +102,10 @@ func (ds *Scanner) rescanDir(dir, objectID string) {
 
 	for _, entry := range entries {
 		fullPath := path.Join(dir, entry.Name())
+		if entry.IsDir() && entry.Name() == "@eaDir" {
+			// synology special folders
+			continue
+		}
 
 		//can not get info about file/directory - just skip it
 		if info, err = entry.Info(); err != nil {

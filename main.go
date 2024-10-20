@@ -1,6 +1,9 @@
 package main
 
 import (
+	"flag"
+	"fmt"
+	"github.com/szonov/godlna/internal/config"
 	"github.com/szonov/godlna/internal/contentdirectory"
 	"github.com/szonov/godlna/internal/deviceinfo"
 	"github.com/szonov/godlna/internal/dlnaserver"
@@ -19,33 +22,63 @@ import (
 )
 
 func main() {
-
-	logger.InitLogger()
-
 	// ------------------------------------------------------------
-	// 1. initialize backend
+	// read configuration from file,
+	// passed in command line argument `-config config.toml`
 	// ------------------------------------------------------------
 
-	if err := store.Init("storage/media", "storage/cache", 1*time.Minute); err != nil {
-		slog.Error("PANIC", "err", err)
-		os.Exit(1)
+	var configFile string
+	flag.StringVar(&configFile, "config", "config.toml", "Config file")
+	flag.Parse()
+
+	var cfg *config.Config
+	var err error
+
+	if cfg, err = config.Read(configFile); err != nil {
+		criticalError(err)
+	}
+
+	logger.InitLogger(cfg.Logger.Level)
+
+	// ------------------------------------------------------------
+	// initialize store
+	// ------------------------------------------------------------
+
+	if cfg.Store.MediaDir == "" || cfg.Store.CacheDir == "" {
+		criticalError(fmt.Errorf("missing configuration for media dir or cache dir"))
+	}
+	if cfg.Store.CacheLifeTime == 0 {
+		cfg.Store.CacheLifeTime = 10 * time.Minute
+	}
+	err = store.Init(cfg.Store.MediaDir, cfg.Store.CacheDir, cfg.Store.CacheLifeTime)
+	if err != nil {
+		criticalError(err)
 	}
 
 	// ------------------------------------------------------------
-	// 2. setup device
+	// setup device
 	// ------------------------------------------------------------
 
-	v4face := net_utils.DefaultV4Interface()
-	listenAddress := v4face.ListenAddress(55975)
-	friendlyName := "SZ"
-	serverHeader := dlnaserver.DefaultServerHeader()
+	v4face := net_utils.DefaultV4Interface(cfg.Network.IFace, cfg.Network.IP)
+	listenAddress := v4face.ListenAddress(cfg.Server.Port)
+
+	var friendlyName, udn, serverHeader string
+	if friendlyName = cfg.Device.FriendlyName; friendlyName == "" {
+		friendlyName = "Video"
+	}
+	if udn = cfg.Device.UUID; udn == "" {
+		udn = device.NewUDN(friendlyName)
+	}
+	if serverHeader = cfg.Server.Header; serverHeader == "" {
+		serverHeader = dlnaserver.DefaultServerHeader()
+	}
 
 	deviceDescription := &device.Description{
 		SpecVersion: device.Version,
 		Device: &device.Device{
 			DeviceType:   "urn:schemas-upnp-org:device:MediaServer:1",
 			FriendlyName: friendlyName,
-			UDN:          device.NewUDN(friendlyName),
+			UDN:          udn,
 			Manufacturer: "Home",
 			ModelName:    "DLNA Server",
 			IconList: []device.Icon{
@@ -77,27 +110,28 @@ func main() {
 	}
 
 	// ------------------------------------------------------------
-	// 3. setup services and handlers
+	// setup services and handlers
 	// ------------------------------------------------------------
 
-	if err := deviceinfo.Init(deviceDescription); err != nil {
-		slog.Error("PANIC: device info init", "err", err)
-		os.Exit(1)
+	if err = deviceinfo.Init(deviceDescription); err != nil {
+		criticalError(err)
 	}
-
-	if err := contentdirectory.Init(); err != nil {
-		slog.Error("PANIC: content directory init", "err", err)
-		os.Exit(1)
+	if err = contentdirectory.Init(); err != nil {
+		criticalError(err)
 	}
 
 	// ------------------------------------------------------------
-	// 4. setup dlna http server
+	// setup dlna http server
 	// ------------------------------------------------------------
 
+	ssdpInterface := v4face.Interface
+	if cfg.Ssdp.Disable {
+		ssdpInterface = nil
+	}
 	var requestID int64 = 0
 	dlnaServer := &dlnaserver.Server{
 		ListenAddress:     listenAddress,
-		SsdpInterface:     v4face.Interface,
+		SsdpInterface:     ssdpInterface,
 		DeviceDescription: deviceDescription,
 		ServerHeader:      serverHeader,
 		OnHttpRequest: func(s *dlnaserver.Server, next http.HandlerFunc, w http.ResponseWriter, r *http.Request) {
@@ -126,7 +160,21 @@ func main() {
 	}
 
 	// ------------------------------------------------------------
-	// 5. start
+	// debug used configuration
+	// ------------------------------------------------------------
+
+	slog.Debug("---------------------------------------------")
+	slog.Debug("CFG", "Friendly Name", friendlyName)
+	slog.Debug("CFG", "UDN", udn)
+	slog.Debug("CFG", "Listen Address", listenAddress)
+	slog.Debug("CFG", "SSDP Enabled", ssdpInterface != nil)
+	slog.Debug("CFG", "Media Dir", cfg.Store.MediaDir)
+	slog.Debug("CFG", "Cache Dir", cfg.Store.CacheDir)
+	slog.Debug("CFG", "Cache Life Time", cfg.Store.CacheLifeTime)
+	slog.Debug("---------------------------------------------")
+
+	// ------------------------------------------------------------
+	// start
 	// ------------------------------------------------------------
 
 	c := make(chan os.Signal, 1)
@@ -144,4 +192,9 @@ func main() {
 
 	slog.Info("server stopped")
 
+}
+
+func criticalError(err error) {
+	slog.Error(err.Error())
+	os.Exit(1)
 }

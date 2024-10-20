@@ -31,3 +31,4 @@ go.work.sum
 /*.db
 /*.http
 /*.json
+/*.toml

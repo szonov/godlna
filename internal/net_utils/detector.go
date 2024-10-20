@@ -26,7 +26,7 @@ func (v V4Interface) ListenAddress(port ...int) string {
 	if !v.Valid() {
 		return ""
 	}
-	if len(port) > 0 {
+	if len(port) > 0 && port[0] != 0 {
 		return v.IP + ":" + strconv.Itoa(port[0])
 	} else {
 		if p, err := v.AvailablePort(); err == nil {

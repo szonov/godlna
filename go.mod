@@ -6,6 +6,7 @@ require (
 	github.com/disintegration/imaging v1.6.2
 	github.com/mattn/go-sqlite3 v1.14.24
 	golang.org/x/net v0.30.0
+	github.com/BurntSushi/toml v1.4.0
 )
 
 require (

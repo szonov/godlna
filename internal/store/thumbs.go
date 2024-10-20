@@ -87,10 +87,9 @@ func makeThumbnail(src, dest string, squire bool, watchedPercent uint8) (err err
 	if srcImg, err = imaging.Open(src); err != nil {
 		return err
 	}
-	//thumbWidth = 640
 	if squire {
 		thumbHeight = thumbWidth
-		spaceAround = 80
+		spaceAround = 40
 	}
 	dstImage = imaging.Thumbnail(srcImg, thumbWidth, thumbHeight, imaging.Lanczos)
 

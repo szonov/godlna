@@ -37,13 +37,19 @@ type Store struct {
 	CacheLifeTime time.Duration `toml:"cache_life_time"`
 }
 
+type Programs struct {
+	FFProbe string `toml:"ffprobe"`
+	FFMpeg  string `toml:"ffmpeg"`
+}
+
 type Config struct {
-	Network Network `toml:"network"`
-	Server  Server  `toml:"server"`
-	Ssdp    Ssdp    `toml:"ssdp"`
-	Logger  Logger  `toml:"logger"`
-	Device  Device  `toml:"device"`
-	Store   Store   `toml:"store"`
+	Network  Network  `toml:"network"`
+	Server   Server   `toml:"server"`
+	Ssdp     Ssdp     `toml:"ssdp"`
+	Logger   Logger   `toml:"logger"`
+	Device   Device   `toml:"device"`
+	Store    Store    `toml:"store"`
+	Programs Programs `toml:"programs"`
 }
 
 func Read(configFile string) (*Config, error) {

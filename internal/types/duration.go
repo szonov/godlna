@@ -42,3 +42,11 @@ func (d *Duration) PercentOf(full *Duration) uint8 {
 	}
 	return 0
 }
+
+func (d *Duration) Divided(i uint64) *Duration {
+	if d != nil && i != 0 {
+		nd := Duration(d.Uint64() / i)
+		return &nd
+	}
+	return nil
+}

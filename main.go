@@ -7,6 +7,7 @@ import (
 	"github.com/szonov/godlna/internal/contentdirectory"
 	"github.com/szonov/godlna/internal/deviceinfo"
 	"github.com/szonov/godlna/internal/dlnaserver"
+	"github.com/szonov/godlna/internal/ffmpeg"
 	"github.com/szonov/godlna/internal/logger"
 	"github.com/szonov/godlna/internal/net_utils"
 	"github.com/szonov/godlna/internal/store"
@@ -54,6 +55,15 @@ func main() {
 	if err != nil {
 		criticalError(err)
 	}
+
+	if cfg.Programs.FFMpeg == "" {
+		cfg.Programs.FFMpeg = "ffmpeg"
+	}
+	if cfg.Programs.FFProbe == "" {
+		cfg.Programs.FFProbe = "ffprobe"
+	}
+	ffmpeg.SetFFMpegBinPath(cfg.Programs.FFMpeg)
+	ffmpeg.SetFFProbeBinPath(cfg.Programs.FFProbe)
 
 	// ------------------------------------------------------------
 	// setup device
@@ -171,6 +181,8 @@ func main() {
 	slog.Debug("CFG", "Media Dir", cfg.Store.MediaDir)
 	slog.Debug("CFG", "Cache Dir", cfg.Store.CacheDir)
 	slog.Debug("CFG", "Cache Life Time", cfg.Store.CacheLifeTime)
+	slog.Debug("CFG", "ffprobe", cfg.Programs.FFProbe)
+	slog.Debug("CFG", "ffmpeg", cfg.Programs.FFMpeg)
 	slog.Debug("---------------------------------------------")
 
 	// ------------------------------------------------------------

@@ -42,3 +42,10 @@
     # optional (default 10 minutes), format "10m" - 10 minutes, "10h" - 10 hours
     # how often should be checked directory changes
     cache_life_time = "10m"
+
+# Used binaries configuration
+[programs]
+    # optional, the global path to find and execute the `ffprobe` program
+    ffprobe = "ffprobe"
+    # optional, the global path to find and execute the `ffmpeg` program
+    ffmpeg = "ffmpeg"

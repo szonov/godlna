@@ -33,7 +33,8 @@ func GetThumbnail(objectID string, squire bool) (thumbnailPath string, t time.Ti
 			return
 		}
 
-		thumbTimeSeek := "10"
+		// by default 10% of full video duration (= duration / 10)
+		thumbTimeSeek := object.Duration.Divided(10)
 		var watchedPercent uint8 = 0
 
 		if object.Bookmark != nil {
@@ -45,12 +46,12 @@ func GetThumbnail(objectID string, squire bool) (thumbnailPath string, t time.Ti
 			} else {
 				watchedPercent = object.Bookmark.PercentOf(object.Duration)
 				if watchedPercent > 0 && watchedPercent < 100 {
-					thumbTimeSeek = object.Bookmark.String()
+					thumbTimeSeek = object.Bookmark
 				}
 			}
 		}
 
-		if err = grabVideoFrame(object.FullPath(), videoFramePath, thumbTimeSeek); err != nil {
+		if err = grabVideoFrame(object.FullPath(), videoFramePath, thumbTimeSeek.String()); err != nil {
 			return
 		}
 		if err = makeThumbnail(videoFramePath, thumbnailPath, squire, watchedPercent); err != nil {

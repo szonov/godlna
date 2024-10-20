@@ -1,8 +1,8 @@
 package contentdirectory
 
 import (
-	"github.com/szonov/godlna/internal/backend"
 	"github.com/szonov/godlna/internal/fs_utils"
+	"github.com/szonov/godlna/internal/store"
 	"log/slog"
 	"net/http"
 	"os"
@@ -21,7 +21,7 @@ func HandleThumbnailURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	imagePath, modTime, err := backend.GetThumbnail(objectID, squire)
+	imagePath, modTime, err := store.GetThumbnail(objectID, squire)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)

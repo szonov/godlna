@@ -1,8 +1,8 @@
 package contentdirectory
 
 import (
-	"github.com/szonov/godlna/internal/backend"
 	"github.com/szonov/godlna/internal/fs_utils"
+	"github.com/szonov/godlna/internal/store"
 	"log/slog"
 	"net/http"
 	"os"
@@ -17,7 +17,7 @@ func HandleVideoURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	objectId := fs_utils.NameWithoutExtension(video)
-	object := backend.GetObject(objectId)
+	object := store.GetObject(objectId)
 
 	if object == nil {
 		slog.Error("Object path not found", "objectID", objectId)

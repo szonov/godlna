@@ -13,6 +13,7 @@ const (
 var (
 	serviceDescriptionXML []byte
 	eventManager          *events.Manager
+	systemUpdateId        = "0"
 )
 
 func Init() (err error) {

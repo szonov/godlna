@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/szonov/godlna/internal/backend"
 	"github.com/szonov/godlna/internal/contentdirectory"
 	"github.com/szonov/godlna/internal/deviceinfo"
 	"github.com/szonov/godlna/internal/dlnaserver"
 	"github.com/szonov/godlna/internal/logger"
 	"github.com/szonov/godlna/internal/net_utils"
+	"github.com/szonov/godlna/internal/store"
 	"github.com/szonov/godlna/upnp/device"
 	"github.com/szonov/godlna/upnp/ssdp"
 	"log/slog"
@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"strconv"
 	"sync/atomic"
+	"time"
 )
 
 func main() {
@@ -25,12 +26,10 @@ func main() {
 	// 1. initialize backend
 	// ------------------------------------------------------------
 
-	if err := backend.Init("storage/media", "storage/cache"); err != nil {
+	if err := store.Init("storage/media", "storage/cache", 1*time.Minute); err != nil {
 		slog.Error("PANIC", "err", err)
 		os.Exit(1)
 	}
-
-	backend.Scanner.Scan("0")
 
 	// ------------------------------------------------------------
 	// 2. setup device

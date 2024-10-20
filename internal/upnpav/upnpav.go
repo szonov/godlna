@@ -25,8 +25,7 @@ type Resource struct {
 // Container description
 type Container struct {
 	Object
-	XMLName    xml.Name `xml:"container"`
-	ChildCount uint64   `xml:"childCount,attr"`
+	XMLName xml.Name `xml:"container"`
 }
 
 type Bookmark int64

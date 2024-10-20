@@ -1,4 +1,4 @@
-package backend
+package store
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ import (
 func GetThumbnail(objectID string, squire bool) (thumbnailPath string, t time.Time, err error) {
 
 	t = time.Now()
-	objCacheDir := GetObjectCacheDir(objectID)
+	objCacheDir := getObjectCacheDir(objectID)
 	videoFramePath := objCacheDir + "/video.jpg"
 	if squire {
 		thumbnailPath = objCacheDir + "/square.jpg"
@@ -76,8 +76,8 @@ func grabVideoFrame(src, dest string, timeToSeek string) (err error) {
 
 func makeThumbnail(src, dest string, squire bool, watchedPercent uint8) (err error) {
 
-	thumbWidth := 480
-	coloredLineHeight := 40
+	thumbWidth, thumbHeight := 480, 300
+	coloredLineHeight := 30
 	spaceAround := 0
 
 	var srcImg image.Image
@@ -86,13 +86,12 @@ func makeThumbnail(src, dest string, squire bool, watchedPercent uint8) (err err
 	if srcImg, err = imaging.Open(src); err != nil {
 		return err
 	}
+	//thumbWidth = 640
 	if squire {
-		dstImage = imaging.Thumbnail(srcImg, thumbWidth, thumbWidth, imaging.Lanczos)
-	} else {
-		dstImage = imaging.Resize(srcImg, thumbWidth, 0, imaging.Lanczos)
+		thumbHeight = thumbWidth
+		spaceAround = 80
 	}
-
-	imageHeight := dstImage.Bounds().Max.Y
+	dstImage = imaging.Thumbnail(srcImg, thumbWidth, thumbHeight, imaging.Lanczos)
 
 	if watchedPercent > 0 {
 		if watchedPercent > 100 {
@@ -106,19 +105,19 @@ func makeThumbnail(src, dest string, squire bool, watchedPercent uint8) (err err
 		if watchedPercent < 100 {
 			// draw gray background
 			line = image.Rect(
-				spaceAround, imageHeight-coloredLineHeight-spaceAround,
-				spaceAround+width, imageHeight-spaceAround,
+				spaceAround, thumbHeight-coloredLineHeight,
+				spaceAround+width, thumbHeight,
 			)
 			lineColor = color.RGBA{R: 106, G: 106, B: 106, A: 180}
-			draw.Draw(dstImage, line, &image.Uniform{C: lineColor}, image.Point{2, 2}, draw.Over)
+			draw.Draw(dstImage, line, &image.Uniform{C: lineColor}, image.Point{X: 2, Y: 2}, draw.Over)
 
 			lineColor = color.RGBA{R: 255, G: 85, B: 0, A: 255} // orange
 		} else {
 			lineColor = color.RGBA{R: 110, G: 215, B: 92, A: 255} // green
 		}
 		line = image.Rect(
-			spaceAround, imageHeight-coloredLineHeight-spaceAround,
-			spaceAround+coloredLineWidth, imageHeight-spaceAround,
+			spaceAround, thumbHeight-coloredLineHeight,
+			spaceAround+coloredLineWidth, thumbHeight,
 		)
 		draw.Draw(dstImage, line, &image.Uniform{C: lineColor}, image.Point{}, draw.Over)
 	}

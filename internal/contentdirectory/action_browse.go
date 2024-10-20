@@ -2,9 +2,9 @@ package contentdirectory
 
 import (
 	"fmt"
-	"github.com/szonov/godlna/internal/backend"
 	"github.com/szonov/godlna/internal/client"
 	"github.com/szonov/godlna/internal/soap"
+	"github.com/szonov/godlna/internal/store"
 	"github.com/szonov/godlna/internal/upnpav"
 	"net/http"
 	"path/filepath"
@@ -33,21 +33,22 @@ func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	object := backend.GetObject(in.ObjectID)
+	object := store.GetObject(in.ObjectID, true)
 	if object == nil {
 		soap.SendUPnPError(upnpav.NoSuchObjectErrorCode, "no such object", w, http.StatusBadRequest)
 		return
 	}
 
 	out := &argOutBrowse{}
-	var objects []*backend.Object
+	var objects []*store.Object
 
 	switch in.BrowseFlag {
 	case "BrowseDirectChildren":
-		objects, out.TotalMatches = object.Children(in.RequestedCount, in.StartingIndex)
+		out.TotalMatches = object.ChildCount()
+		objects = object.Children(in.RequestedCount, in.StartingIndex)
 
 	case "BrowseMetadata":
-		objects, out.TotalMatches = []*backend.Object{object}, 1
+		objects, out.TotalMatches = []*store.Object{object}, 1
 
 	default:
 		err := fmt.Errorf("invalid BrowseFlag: %s", in.BrowseFlag)
@@ -56,17 +57,17 @@ func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Reques
 	}
 
 	out.NumberReturned = len(objects)
-	out.UpdateID = backend.GetSystemUpdateId()
+	out.UpdateID = systemUpdateId
 	out.Result = &soap.DIDLLite{
 		Debug: r.Header.Get("X-Debug") == "1",
 	}
 
 	features := client.GetFeatures(r)
 	for _, o := range objects {
-		if o.Type == backend.Video {
-			out.Result.Append(videoItem(o, r.Host, features))
-		} else {
+		if o.IsFolder() {
 			out.Result.Append(storageFolder(o))
+		} else {
+			out.Result.Append(videoItem(o, r.Host, features))
 		}
 	}
 
@@ -85,20 +86,19 @@ func protocolInfo(mimeType, contentFeatures string) string {
 	return fmt.Sprintf("http-get:*:%s:%s", mimeType, contentFeatures)
 }
 
-func storageFolder(o *backend.Object) upnpav.Container {
+func storageFolder(o *store.Object) upnpav.Container {
 	return upnpav.Container{
 		Object: upnpav.Object{
 			ID:         o.ObjectID,
 			Restricted: 1,
 			ParentID:   o.ParentID,
-			Class:      "object.container.storageFolder",
+			Class:      "object." + o.Class,
 			Title:      o.Title(),
 		},
-		ChildCount: o.Size.Uint64(),
 	}
 }
 
-func videoItem(o *backend.Object, host string, features *client.Features) upnpav.Item {
+func videoItem(o *store.Object, host string, features *client.Features) upnpav.Item {
 
 	bm := o.Bookmark.Duration().String()
 
@@ -126,7 +126,7 @@ func videoItem(o *backend.Object, host string, features *client.Features) upnpav
 			ID:          o.ObjectID,
 			Restricted:  1,
 			ParentID:    o.ParentID,
-			Class:       "object.item.videoItem",
+			Class:       "object." + o.Class,
 			Title:       o.Title(),
 			Date:        o.Timestamp.Time().Format("2006-01-02T15:04:05"),
 			AlbumArtURI: &upnpav.AlbumArtURI{Value: thumbURL, Profile: "JPEG_TN"},

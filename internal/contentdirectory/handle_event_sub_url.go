@@ -1,7 +1,6 @@
 package contentdirectory
 
 import (
-	"github.com/szonov/godlna/internal/backend"
 	"net/http"
 )
 
@@ -22,7 +21,7 @@ func HandleEventSubURL(w http.ResponseWriter, r *http.Request) {
 
 		if res.Success && res.IsNewSubscription {
 			eventManager.SendInitialState(res.SID, map[string]string{
-				"SystemUpdateID":     backend.GetSystemUpdateId(),
+				"SystemUpdateID":     systemUpdateId,
 				"ContainerUpdateIDs": "",
 			})
 		}

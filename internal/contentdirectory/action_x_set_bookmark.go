@@ -1,10 +1,11 @@
 package contentdirectory
 
 import (
-	"github.com/szonov/godlna/internal/backend"
 	"github.com/szonov/godlna/internal/client"
 	"github.com/szonov/godlna/internal/logger"
 	"github.com/szonov/godlna/internal/soap"
+	"github.com/szonov/godlna/internal/store"
+	"github.com/szonov/godlna/internal/upnpav"
 	"net/http"
 )
 
@@ -25,9 +26,14 @@ func actionSetBookmark(soapAction *soap.Action, w http.ResponseWriter, r *http.R
 
 	logger.DebugPointer("X_SetBookmark [IN]", in)
 
+	object := store.GetObject(in.ObjectID)
+	if object == nil {
+		soap.SendUPnPError(upnpav.NoSuchObjectErrorCode, "no such object", w, http.StatusBadRequest)
+		return
+	}
 	if client.GetFeatures(r).UseSecondsInBookmark {
 		in.PosSecond *= 1000
 	}
-	backend.SetBookmark(in.ObjectID, in.PosSecond)
+	object.SetBookmark(in.PosSecond)
 	soap.SendActionResponse(soapAction, nil, w)
 }

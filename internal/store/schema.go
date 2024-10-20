@@ -35,6 +35,7 @@ func Init(media, cache string, cacheLifeTime time.Duration) (err error) {
 	}
 	err = createSchema()
 	directoryScanner = scanner.NewScanner(mediaDir, cacheLifeTime, db)
+	directoryScanner.OnObjectDelete = removeObjectCache
 	return
 }
 

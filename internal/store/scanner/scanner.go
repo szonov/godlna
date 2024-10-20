@@ -18,10 +18,11 @@ import (
 )
 
 type Scanner struct {
-	root          string
-	cacheLifeTime time.Duration
-	guard         *Guard
-	db            *sql.DB
+	root           string
+	cacheLifeTime  time.Duration
+	guard          *Guard
+	db             *sql.DB
+	OnObjectDelete func(objectID string)
 }
 
 type cachedObject struct {
@@ -188,8 +189,11 @@ func (ds *Scanner) deleteOldChildren(objects map[string]cachedObject) {
 
 func (ds *Scanner) deleteObject(objectID string) {
 	if objectID != "0" {
-		if _, err := ds.db.Exec("DELETE FROM OBJECTS WHERE OBJECT_ID = ?", objectID); err != nil {
+		_, err := ds.db.Exec("DELETE FROM OBJECTS WHERE OBJECT_ID = ? OR OBJECT_ID LIKE ?", objectID, objectID+"$%")
+		if err != nil {
 			slog.Error("deleteObject", "OBJECT_ID", objectID, "error", err.Error())
+		} else if ds.OnObjectDelete != nil {
+			ds.OnObjectDelete(objectID)
 		}
 	}
 }

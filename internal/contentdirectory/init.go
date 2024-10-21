@@ -17,21 +17,10 @@ var (
 )
 
 func Init() (err error) {
-
-	doc := NewServiceDescription()
-	serviceDescriptionXML, err = xml.Marshal(doc)
-	if err != nil {
+	if serviceDescriptionXML, err = xml.Marshal(NewServiceDescription()); err != nil {
 		return
 	}
 	serviceDescriptionXML = append([]byte(xml.Header), serviceDescriptionXML...)
-
-	eventfulVariables := make([]string, 0)
-	for _, st := range doc.StateVariables {
-		if st.SendEvents == "yes" {
-			eventfulVariables = append(eventfulVariables, st.Name)
-		}
-	}
 	eventManager = events.NewManager()
-	doc = nil
 	return
 }

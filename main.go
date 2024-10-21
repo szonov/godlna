@@ -14,6 +14,7 @@ import (
 	"github.com/szonov/godlna/upnp/device"
 	"github.com/szonov/godlna/upnp/ssdp"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -134,9 +135,9 @@ func main() {
 	// setup dlna http server
 	// ------------------------------------------------------------
 
-	ssdpInterface := v4face.Interface
-	if cfg.Ssdp.Disable {
-		ssdpInterface = nil
+	var ssdpInterface *net.Interface
+	if !cfg.Ssdp.Disable {
+		ssdpInterface = v4face.Interface
 	}
 	var requestID int64 = 0
 	dlnaServer := &dlnaserver.Server{

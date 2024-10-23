@@ -21,7 +21,7 @@
 
 # Logger configuration
 [logger]
-    # Optional, (deafult is info) Possible values: debug, info, warn, error
+    # Optional, (default is info) Possible values: debug, info, warn, error
     level = "debug"
 
 # Device configuration

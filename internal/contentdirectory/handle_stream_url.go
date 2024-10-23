@@ -35,10 +35,10 @@ func HandleStreamURL(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("EXT", "")
 	w.Header().Set("transferMode.dlna.org", "Streaming")
-	w.Header().Set("contentFeatures.dlna.org", dlna.NewMediaContentFeatures(object.Profile()).String())
+	w.Header().Set("contentFeatures.dlna.org", dlna.NewStreamContentFeatures(object.Profile()).String())
 	w.Header().Set("Content-Type", object.MimeType())
 
-	if r.Method == "HEAD" {
+	if r.Method == http.MethodHead {
 		w.WriteHeader(http.StatusOK)
 		return
 	}

@@ -12,10 +12,6 @@ type ContentFeatures struct {
 	flags string
 }
 
-func NewContentFeatures() *ContentFeatures {
-	return &ContentFeatures{}
-}
-
 func NewThumbContentFeatures() *ContentFeatures {
 	return new(ContentFeatures).
 		Profile("JPEG_TN").
@@ -32,7 +28,7 @@ func NewMediaContentFeatures(profile ...string) *ContentFeatures {
 		Flags("01700000000000000000000000000000")
 }
 
-func NewLiveStreamContentFeatures(profile ...string) *ContentFeatures {
+func NewStreamContentFeatures(profile ...string) *ContentFeatures {
 	if len(profile) == 0 {
 		profile = append(profile, "")
 	}

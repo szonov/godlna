@@ -154,7 +154,7 @@ func videoStream(o *db.Object, r *http.Request) upnpav.Item {
 		Res: []upnpav.Resource{
 			{
 				URL:          videoURL,
-				ProtocolInfo: protocolInfo(o.MimeType(), dlna.NewLiveStreamContentFeatures(o.Profile()).String()),
+				ProtocolInfo: protocolInfo(o.MimeType(), dlna.NewStreamContentFeatures(o.Profile()).String()),
 			},
 			{
 				URL:          thumbURL,

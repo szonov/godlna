@@ -1,12 +1,13 @@
 package contentdirectory
 
 import (
-	"github.com/szonov/godlna/internal/db"
-	"github.com/szonov/godlna/internal/dlna"
-	"github.com/szonov/godlna/internal/fs_utils"
 	"log/slog"
 	"net/http"
 	"path"
+
+	"github.com/szonov/godlna/internal/db"
+	"github.com/szonov/godlna/internal/dlna"
+	"github.com/szonov/godlna/internal/fs_utils"
 )
 
 func HandleStreamIconURL(w http.ResponseWriter, r *http.Request) {
@@ -18,7 +19,7 @@ func HandleStreamIconURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if object.Type != db.TypeStream {
-		slog.Error("object is not stream '%s'", objectID)
+		slog.Error("object is not stream", "objectID", objectID)
 		return
 	}
 	iconPath := path.Join(object.FullPath(), "icon.png")

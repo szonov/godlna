@@ -2,14 +2,15 @@ package contentdirectory
 
 import (
 	"errors"
-	"github.com/szonov/godlna/internal/db"
-	"github.com/szonov/godlna/internal/dlna"
 	"io"
 	"log/slog"
 	"net/http"
 	"os/exec"
 	"strings"
 	"syscall"
+
+	"github.com/szonov/godlna/internal/db"
+	"github.com/szonov/godlna/internal/dlna"
 )
 
 func HandleStreamURL(w http.ResponseWriter, r *http.Request) {
@@ -23,12 +24,12 @@ func HandleStreamURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if object.Type != db.TypeStream {
-		slog.Error("object is not stream '%s'", objectID)
+		slog.Error("object is not stream", "objectID", objectID)
 		return
 	}
 
 	if object.Meta == nil {
-		slog.Error("object has no meta information '%s'", objectID)
+		slog.Error("object has no meta information", "objectID", objectID)
 		return
 	}
 

@@ -1,4 +1,4 @@
-package dlnaserver
+package dlna
 
 import (
 	"context"

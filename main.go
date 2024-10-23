@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"github.com/szonov/godlna/internal/config"
 	"github.com/szonov/godlna/internal/contentdirectory"
+	"github.com/szonov/godlna/internal/db"
 	"github.com/szonov/godlna/internal/deviceinfo"
-	"github.com/szonov/godlna/internal/dlnaserver"
+	"github.com/szonov/godlna/internal/dlna"
 	"github.com/szonov/godlna/internal/ffmpeg"
 	"github.com/szonov/godlna/internal/logger"
 	"github.com/szonov/godlna/internal/net_utils"
-	"github.com/szonov/godlna/internal/store"
 	"github.com/szonov/godlna/upnp/device"
 	"github.com/szonov/godlna/upnp/ssdp"
 	"log/slog"
@@ -24,6 +24,7 @@ import (
 )
 
 func main() {
+
 	// ------------------------------------------------------------
 	// read configuration from file,
 	// passed in command line argument `-config config.toml`
@@ -46,13 +47,14 @@ func main() {
 	// initialize store
 	// ------------------------------------------------------------
 
-	if cfg.Store.MediaDir == "" || cfg.Store.CacheDir == "" {
-		criticalError(fmt.Errorf("missing configuration for media dir or cache dir"))
+	if cfg.Store.MediaDir == "" {
+		criticalError(fmt.Errorf("missing configuration for media dir"))
 	}
 	if cfg.Store.CacheLifeTime == 0 {
 		cfg.Store.CacheLifeTime = 10 * time.Minute
 	}
-	err = store.Init(cfg.Store.MediaDir, cfg.Store.CacheDir, cfg.Store.CacheLifeTime)
+
+	err = db.Init(cfg.Store.MediaDir, cfg.Store.CacheDir, cfg.Store.CacheLifeTime)
 	if err != nil {
 		criticalError(err)
 	}
@@ -81,7 +83,7 @@ func main() {
 		udn = device.NewUDN(friendlyName)
 	}
 	if serverHeader = cfg.Server.Header; serverHeader == "" {
-		serverHeader = dlnaserver.DefaultServerHeader()
+		serverHeader = dlna.DefaultServerHeader()
 	}
 
 	deviceDescription := &device.Description{
@@ -140,18 +142,18 @@ func main() {
 		ssdpInterface = v4face.Interface
 	}
 	var requestID int64 = 0
-	dlnaServer := &dlnaserver.Server{
+	dlnaServer := &dlna.Server{
 		ListenAddress:     listenAddress,
 		SsdpInterface:     ssdpInterface,
 		DeviceDescription: deviceDescription,
 		ServerHeader:      serverHeader,
-		OnHttpRequest: func(s *dlnaserver.Server, next http.HandlerFunc, w http.ResponseWriter, r *http.Request) {
+		OnHttpRequest: func(s *dlna.Server, next http.HandlerFunc, w http.ResponseWriter, r *http.Request) {
 			r.Header.Set("X-Request-ID", strconv.FormatInt(atomic.AddInt64(&requestID, 1), 10))
-			logger.DebugRequest(r, true, false)
+			logger.DebugRequest(r, false, false)
 			w.Header().Set("Server", s.ServerHeader)
 			next.ServeHTTP(w, r)
 		},
-		BeforeStart: func(s *dlnaserver.Server, mux *http.ServeMux, s_ *ssdp.Server) {
+		BeforeStart: func(s *dlna.Server, mux *http.ServeMux, s_ *ssdp.Server) {
 			// index
 			mux.HandleFunc("/", s.Hook(deviceinfo.HandlePresentationURL))
 
@@ -165,8 +167,10 @@ func main() {
 			mux.HandleFunc("/cds/evt", s.Hook(contentdirectory.HandleEventSubURL))
 
 			// content
-			mux.HandleFunc("/t/{path...}", s.Hook(contentdirectory.HandleThumbnailURL))
-			mux.HandleFunc("/v/{path...}", s.Hook(contentdirectory.HandleVideoURL))
+			mux.HandleFunc("/v/t/{objectID}/{videoThumb}", s.Hook(contentdirectory.HandleVideoThumbURL))
+			mux.HandleFunc("/v/v/{objectID}/{videoName}", s.Hook(contentdirectory.HandleVideoURL))
+			mux.HandleFunc("/s/t/{objectID}/{streamThumb}", s.Hook(contentdirectory.HandleStreamIconURL))
+			mux.HandleFunc("/s/v/{objectID}/{streamName}", s.Hook(contentdirectory.HandleStreamURL))
 		},
 	}
 

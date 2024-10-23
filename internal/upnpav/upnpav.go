@@ -15,11 +15,11 @@ type Resource struct {
 	ProtocolInfo    string   `xml:"protocolInfo,attr"`
 	URL             string   `xml:",chardata"`
 	Size            uint64   `xml:"size,attr,omitempty"`
-	Bitrate         uint     `xml:"bitrate,attr,omitempty"`
+	Bitrate         uint32   `xml:"bitrate,attr,omitempty"`
 	Duration        string   `xml:"duration,attr,omitempty"`
 	Resolution      string   `xml:"resolution,attr,omitempty"`
-	AudioChannels   int      `xml:"nrAudioChannels,attr,omitempty"`
-	SampleFrequency string   `xml:"sampleFrequency,attr,omitempty"`
+	AudioChannels   uint32   `xml:"nrAudioChannels,attr,omitempty"`
+	SampleFrequency uint32   `xml:"sampleFrequency,attr,omitempty"`
 }
 
 // Container description

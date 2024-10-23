@@ -7,6 +7,10 @@ import (
 
 type Duration int64
 
+func NewDuration(v int64) *Duration {
+	return (*Duration)(&v)
+}
+
 func (d *Duration) Duration() time.Duration {
 	if d != nil {
 		return time.Duration(int64(*d) * int64(time.Millisecond))

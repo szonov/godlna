@@ -1,4 +1,4 @@
-package scanner
+package db
 
 import (
 	"math/rand"
@@ -8,6 +8,7 @@ import (
 
 // ref: https://github.com/EagleChen/mapmutex/blob/master/mutex.go
 
+// Guard protect scanner from multiply scan in the same time for one directory
 type Guard struct {
 	locks     map[string]bool
 	m         *sync.Mutex

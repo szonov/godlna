@@ -44,7 +44,7 @@ func DebugRequest(r *http.Request, headerBody ...bool) {
 		slog.String("method", r.Method),
 		slog.String("path", r.URL.Path),
 		slog.String("remote", r.RemoteAddr),
-		slog.String("rid", r.Header.Get("X-Request-Id")),
+		slog.String("request_id", r.Header.Get("X-Request-Id")),
 	}
 
 	if a := soap.DetectAction(r.Header.Get("SoapAction")); a != nil {

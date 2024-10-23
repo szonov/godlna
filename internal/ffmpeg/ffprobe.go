@@ -17,10 +17,10 @@ func SetFFProbeBinPath(binPath string) {
 type ProbeStream struct {
 	CodecType  string `json:"codec_type"`
 	CodecName  string `json:"codec_name"`
-	SampleRate uint   `json:"sample_rate,string"`
-	Channels   int    `json:"channels"`
-	Width      int    `json:"width"`
-	Height     int    `json:"height"`
+	SampleRate uint32 `json:"sample_rate,string"`
+	Channels   uint32 `json:"channels"`
+	Width      uint32 `json:"width"`
+	Height     uint32 `json:"height"`
 }
 
 func (s ProbeStream) Resolution() string {
@@ -31,14 +31,14 @@ type ProbeFormat struct {
 	FormatName      string  `json:"format_name"`
 	DurationSeconds float64 `json:"duration,string"`
 	Size            uint64  `json:"size,string"`
-	BitRateOriginal uint    `json:"bit_rate,string"`
+	BitRateOriginal uint32  `json:"bit_rate,string"`
 }
 
 func (f ProbeFormat) Duration() time.Duration {
 	return time.Duration(f.DurationSeconds * float64(time.Second))
 }
 
-func (f ProbeFormat) BitRate() uint {
+func (f ProbeFormat) BitRate() uint32 {
 	if f.BitRateOriginal > 8 {
 		return f.BitRateOriginal / 8
 	}

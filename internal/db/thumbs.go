@@ -78,7 +78,7 @@ func grabVideoFrame(src, dest string, timeToSeek string) (err error) {
 func makeThumbnail(src, dest string, watchedPercent uint8) (err error) {
 
 	thumbWidth, thumbHeight := 480, 300
-	coloredLineHeight := 30
+	coloredLineHeight := 20
 	spaceAround := 0
 
 	var srcImg image.Image

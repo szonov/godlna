@@ -2,7 +2,6 @@ package contentdirectory
 
 import (
 	"fmt"
-	"github.com/szonov/godlna/internal/client"
 	"github.com/szonov/godlna/internal/db"
 	"github.com/szonov/godlna/internal/dlna"
 	"github.com/szonov/godlna/internal/soap"
@@ -64,15 +63,14 @@ func actionBrowse(soapAction *soap.Action, w http.ResponseWriter, r *http.Reques
 		Debug: r.Header.Get("X-Debug") == "1",
 	}
 
-	features := client.GetFeatures(r)
 	for _, o := range objects {
 		switch o.Type {
 		case db.TypeFolder:
 			out.Result.Append(storageFolder(o))
 		case db.TypeVideo:
-			out.Result.Append(videoItem(o, r.Host, features))
+			out.Result.Append(videoItem(o, r))
 		case db.TypeStream:
-			out.Result.Append(videoStream(o, r.Host))
+			out.Result.Append(videoStream(o, r))
 		}
 	}
 
@@ -95,13 +93,14 @@ func storageFolder(o *db.Object) upnpav.Container {
 	}
 }
 
-func videoItem(o *db.Object, host string, features *client.Features) upnpav.Item {
-	thumbURL := fmt.Sprintf("http://%s/v/t/%s/thumb.jpg", host, o.ObjectID)
-	videoURL := fmt.Sprintf("http://%s/v/v/%s/video%s", host, o.ObjectID, filepath.Ext(o.Path))
+func videoItem(o *db.Object, r *http.Request) upnpav.Item {
+
+	thumbURL := fmt.Sprintf("http://%s/v/t/%s/thumb.jpg", r.Host, o.ObjectID)
+	videoURL := fmt.Sprintf("http://%s/v/v/%s/video%s", r.Host, o.ObjectID, filepath.Ext(o.Path))
 
 	// bookmark
 	var bookmark upnpav.Bookmark
-	if features.UseSecondsInBookmark {
+	if dlna.UseSecondsInBookmark(r) {
 		bookmark = upnpav.Bookmark(o.Bookmark.Duration().Seconds())
 	} else {
 		bookmark = upnpav.Bookmark(o.Bookmark.Duration().Milliseconds())
@@ -138,9 +137,9 @@ func videoItem(o *db.Object, host string, features *client.Features) upnpav.Item
 	}
 }
 
-func videoStream(o *db.Object, host string) upnpav.Item {
-	thumbURL := fmt.Sprintf("http://%s/s/t/%s/icon.png", host, o.ObjectID)
-	videoURL := fmt.Sprintf("http://%s/s/v/%s/stream.mp4", host, o.ObjectID)
+func videoStream(o *db.Object, r *http.Request) upnpav.Item {
+	thumbURL := fmt.Sprintf("http://%s/s/t/%s/icon.png", r.Host, o.ObjectID)
+	videoURL := fmt.Sprintf("http://%s/s/v/%s/stream.mp4", r.Host, o.ObjectID)
 
 	return upnpav.Item{
 		Object: upnpav.Object{

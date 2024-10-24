@@ -138,7 +138,7 @@ func videoItem(o *db.Object, r *http.Request) upnpav.Item {
 }
 
 func videoStream(o *db.Object, r *http.Request) upnpav.Item {
-	thumbURL := fmt.Sprintf("http://%s/s/t/%s/icon.png", r.Host, o.ObjectID)
+	thumbURL := fmt.Sprintf("http://%s/s/t/%s/icon.jpg", r.Host, o.ObjectID)
 	videoURL := fmt.Sprintf("http://%s/s/v/%s/stream.mp4", r.Host, o.ObjectID)
 
 	return upnpav.Item{
@@ -158,7 +158,7 @@ func videoStream(o *db.Object, r *http.Request) upnpav.Item {
 			},
 			{
 				URL:          thumbURL,
-				ProtocolInfo: protocolInfo("image/png", dlna.NewThumbContentFeatures().String()),
+				ProtocolInfo: protocolInfo("image/jpeg", dlna.NewThumbContentFeatures().String()),
 			},
 		},
 	}

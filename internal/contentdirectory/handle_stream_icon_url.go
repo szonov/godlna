@@ -22,7 +22,7 @@ func HandleStreamIconURL(w http.ResponseWriter, r *http.Request) {
 		slog.Error("object is not stream", "objectID", objectID)
 		return
 	}
-	iconPath := path.Join(object.FullPath(), "icon.png")
+	iconPath := path.Join(object.FullPath(), "icon.jpg")
 	if !fs_utils.FileExists(iconPath) {
 		slog.Error("There is no icon for stream", "objectID", objectID)
 		w.WriteHeader(http.StatusNotFound)
@@ -31,6 +31,6 @@ func HandleStreamIconURL(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("transferMode.dlna.org", "Interactive")
 	w.Header().Set("contentFeatures.dlna.org", dlna.NewThumbContentFeatures().String())
-	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Content-Type", "image/jpeg")
 	http.ServeFile(w, r, iconPath)
 }

@@ -1,6 +1,7 @@
 package ssdp
 
 import (
+	"bytes"
 	"fmt"
 	"golang.org/x/net/ipv4"
 	"log/slog"
@@ -271,10 +272,7 @@ func (s *Server) parseUdpMessage(buf []byte, sender *net.UDPAddr) {
 		return
 	}
 
-	slog.Debug("ssdp:discover",
-		slog.String("st", st),
-		slog.String("sender", sender.String()),
-	)
+	slog.Debug("ssdp:discover", slog.String("st", st), slog.String("sender", sender.String()))
 
 	for _, target := range targets {
 		msg := s.makeMSearchResponse(target)
@@ -399,6 +397,46 @@ func (s *Server) validateAndSetDefaults() error {
 		s.DeviceUDN = "uuid:" + s.DeviceUDN
 	}
 	s.targets = append([]string{s.DeviceUDN, "upnp:rootdevice", s.DeviceType}, s.ServiceList...)
+
+	return nil
+}
+
+func (s *Server) UseMinissdpd(socket string) error {
+	if socket == "" {
+		socket = "/var/run/minissdpd.sock"
+	}
+	var err error
+	if err = s.validateAndSetDefaults(); err != nil {
+		return err
+	}
+	var minissdpd net.Conn
+	if minissdpd, err = net.Dial("unix", socket); err != nil {
+		return err
+	}
+	defer func(minissdpd net.Conn) {
+		err = minissdpd.Close()
+		if err != nil {
+			slog.Error("error closing minissdpd", slog.String("error", err.Error()))
+		}
+	}(minissdpd)
+
+	for _, target := range s.targets {
+		buf := &bytes.Buffer{}
+		usn := s.usnFromTarget(target)
+
+		_, err = fmt.Fprintf(buf, "\x04%c%s%c%s%c%s%c%s",
+			len(target), target,
+			len(usn), usn,
+			len(s.ServerHeader), s.ServerHeader,
+			len(s.Location), s.Location,
+		)
+		if err != nil {
+			return err
+		}
+		if _, err = minissdpd.Write(buf.Bytes()); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

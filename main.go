@@ -14,7 +14,6 @@ import (
 	"github.com/szonov/godlna/upnp/device"
 	"github.com/szonov/godlna/upnp/ssdp"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -137,14 +136,11 @@ func main() {
 	// setup dlna http server
 	// ------------------------------------------------------------
 
-	var ssdpInterface *net.Interface
-	if !cfg.Ssdp.Disable {
-		ssdpInterface = v4face.Interface
-	}
 	var requestID int64 = 0
 	dlnaServer := &dlna.Server{
 		ListenAddress:     listenAddress,
-		SsdpInterface:     ssdpInterface,
+		SsdpInterface:     v4face.Interface,
+		MinissdpdSocket:   cfg.Ssdp.Minissdpd,
 		DeviceDescription: deviceDescription,
 		ServerHeader:      serverHeader,
 		OnHttpRequest: func(s *dlna.Server, next http.HandlerFunc, w http.ResponseWriter, r *http.Request) {
@@ -153,7 +149,8 @@ func main() {
 			w.Header().Set("Server", s.ServerHeader)
 			next.ServeHTTP(w, r)
 		},
-		BeforeStart: func(s *dlna.Server, mux *http.ServeMux, s_ *ssdp.Server) {
+		BeforeStart: func(s *dlna.Server, mux *http.ServeMux, ss *ssdp.Server) {
+			// setup routes
 			// index
 			mux.HandleFunc("/", s.Hook(deviceinfo.HandlePresentationURL))
 
@@ -171,6 +168,19 @@ func main() {
 			mux.HandleFunc("/v/v/{objectID}/{videoName}", s.Hook(contentdirectory.HandleVideoURL))
 			mux.HandleFunc("/s/t/{objectID}/{streamThumb}", s.Hook(contentdirectory.HandleStreamIconURL))
 			mux.HandleFunc("/s/v/{objectID}/{streamName}", s.Hook(contentdirectory.HandleStreamURL))
+
+			// update ssdp configuration
+			if ss != nil && cfg.Ssdp.Minissdpd == "" {
+				if cfg.Ssdp.MaxAge > 0 {
+					ss.MaxAge = cfg.Ssdp.MaxAge
+				}
+				if cfg.Ssdp.NotifyInterval > 0 {
+					ss.NotifyInterval = cfg.Ssdp.NotifyInterval
+				}
+				if cfg.Ssdp.MulticastTTL > 0 {
+					ss.MulticastTTL = cfg.Ssdp.MulticastTTL
+				}
+			}
 		},
 	}
 
@@ -182,7 +192,11 @@ func main() {
 	slog.Debug("CFG", "Friendly Name", friendlyName)
 	slog.Debug("CFG", "UDN", udn)
 	slog.Debug("CFG", "Listen Address", listenAddress)
-	slog.Debug("CFG", "SSDP Enabled", ssdpInterface != nil)
+	if cfg.Ssdp.Minissdpd != "" {
+		slog.Debug("CFG", "SSDP", "minissdpd", "socket", cfg.Ssdp.Minissdpd)
+	} else {
+		slog.Debug("CFG", "SSDP", "build-in")
+	}
 	slog.Debug("CFG", "Media Dir", cfg.Store.MediaDir)
 	slog.Debug("CFG", "Cache Dir", cfg.Store.CacheDir)
 	slog.Debug("CFG", "Cache Life Time", cfg.Store.CacheLifeTime)

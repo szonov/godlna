@@ -17,7 +17,18 @@
 
 # SSDP configuration
 [ssdp]
-    disable = false
+    # Instead of build-in ssdp server use minissdpd with defined path to socket
+    # Optional, default is empty
+    minissdpd = "/var/run/minissdpd.sock"
+    # Number of seconds the advertisement is valid
+    # Optional, default 30 minutes (30m), used with build-in ssdp server, for minissdpd no sence
+    max_age = "30m"
+    # Interval at which the device re-send advertisements
+    # Optional, default is "2/5 * max_age", used with build-in ssdp server, for minissdpd no sence
+    notify_interval = "12m"
+    # The time-to-live (TTL) of each IP packet for each multicast message
+    # Optional, default is 4, used with build-in ssdp server, for minissdpd no sence
+    notify_ttl = 4
 
 # Logger configuration
 [logger]
@@ -39,8 +50,8 @@
     media_dir = "storage/media"
     # required, directory where generated cache files will be stored
     cache_dir = "storage/cache"
-    # optional (default 10 minutes), format "10m" - 10 minutes, "10h" - 10 hours
     # how often should be checked directory changes
+    # optional (default 10 minutes)
     cache_life_time = "10m"
 
 # Used binaries configuration
@@ -49,3 +60,20 @@
     ffprobe = "ffprobe"
     # optional, the global path to find and execute the `ffmpeg` program
     ffmpeg = "ffmpeg"
+
+
+# https://github.com/BurntSushi/toml/pull/346
+#
+# Notice about duration configuration:
+# - ssdp.max_age, ssdp.notify_interval, store.cache_life_time
+#
+# A duration must be as "number<unit>", without any spaces. Valid units are:
+#
+#        ns         nanoseconds (billionth of a second)
+#        us, µs     microseconds (millionth of a second)
+#        ms         milliseconds (thousands of a second)
+#        s          seconds
+#        m          minutes
+#        h          hours
+#
+# You can combine multiple units; for example "5m10s" for 5 minutes and 10 seconds.

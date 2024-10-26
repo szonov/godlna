@@ -25,8 +25,12 @@ type (
 		ServerHeader string
 
 		// SsdpInterface Interface, on which start SSDP server
-		// If not defined ssdp server will be disabled
+		// If not defined own ssdp server will be disabled
 		SsdpInterface *net.Interface
+
+		// MinissdpdSocket usually '/var/run/minissdpd.sock'
+		// if defined own ssdp server will not be started, instead will be used minissdpd
+		MinissdpdSocket string
 
 		// BeforeStart runs before http and ssdp server starts,
 		// place to set up routes, modify configuration of servers
@@ -70,7 +74,7 @@ func (s *Server) ListenAndServe() error {
 		return err
 	}
 
-	if s.SsdpInterface != nil {
+	if s.SsdpInterface != nil || s.MinissdpdSocket != "" {
 		s.makeSsdpServer()
 	}
 
@@ -84,7 +88,12 @@ func (s *Server) ListenAndServe() error {
 		s.BeforeStart(s, mux, s.ssdpServer)
 	}
 
-	if s.ssdpServer != nil {
+	if s.MinissdpdSocket != "" {
+		if err = s.ssdpServer.UseMinissdpd(s.MinissdpdSocket); err != nil {
+			slog.Error(err.Error())
+			return err
+		}
+	} else if s.ssdpServer != nil {
 		s.ssdpServer.Start()
 	}
 
@@ -117,7 +126,7 @@ func (s *Server) Hook(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Server) Shutdown() {
-	if s.ssdpServer != nil {
+	if s.ssdpServer != nil && s.MinissdpdSocket == "" {
 		s.ssdpServer.Shutdown()
 	}
 

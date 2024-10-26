@@ -19,7 +19,10 @@ type Server struct {
 }
 
 type Ssdp struct {
-	Disable bool `toml:"disable"`
+	Minissdpd      string        `toml:"minissdpd"`
+	MaxAge         time.Duration `toml:"max_age"`
+	NotifyInterval time.Duration `toml:"notify_interval"`
+	MulticastTTL   int           `toml:"notify_ttl"`
 }
 
 type Logger struct {

@@ -1,7 +1,7 @@
 package contentdirectory
 
 import (
-	"github.com/szonov/godlna/upnp/scpd"
+	"github.com/szonov/godlna/pkg/upnp/scpd"
 )
 
 func NewServiceDescription() *scpd.Document {

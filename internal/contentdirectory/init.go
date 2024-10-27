@@ -2,7 +2,7 @@ package contentdirectory
 
 import (
 	"encoding/xml"
-	"github.com/szonov/godlna/upnp/events"
+	"github.com/szonov/godlna/pkg/upnp/events"
 )
 
 const (

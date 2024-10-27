@@ -1,5 +1,54 @@
 package scpd
 
+func NewDocument(majorMinor ...uint) *Document {
+	doc := &Document{
+		SpecVersion: Version,
+	}
+	if len(majorMinor) > 0 {
+		doc.SpecVersion.Major = majorMinor[0]
+	}
+	if len(majorMinor) > 1 {
+		doc.SpecVersion.Major = majorMinor[1]
+	}
+	return doc
+}
+
+func (doc *Document) Action(name string, arguments ...Argument) *Document {
+	doc.Actions = append(doc.Actions, Action{
+		Name: name,
+		Args: arguments,
+	})
+	return doc
+}
+
+func (doc *Document) Variable(name string, typ string, props ...VariableProperty) *Document {
+	variable := StateVariable{
+		Name:       name,
+		SendEvents: "no",
+		DataType:   typ,
+	}
+	for _, prop := range props {
+		switch prop.Name {
+		case "Default":
+			variable.Default = prop.Value.(string)
+		case "Range":
+			val := prop.Value.([3]int)
+			variable.AllowedValueRange = &AllowedValueRange{
+				Min:  val[0],
+				Max:  val[1],
+				Step: val[2],
+			}
+		case "Only":
+			variable.AllowedValues = prop.Value.(*AllowedValueList)
+		case "Events":
+			variable.SendEvents = "yes"
+		}
+	}
+	doc.StateVariables = append(doc.StateVariables, variable)
+
+	return doc
+}
+
 type VariableProperty struct {
 	Name  string
 	Value any
@@ -58,61 +107,4 @@ func Events() VariableProperty {
 	return VariableProperty{
 		Name: "Events",
 	}
-}
-
-type DocumentBuilder struct {
-	document *Document
-}
-
-func NewDocumentBuilder() *DocumentBuilder {
-	return &DocumentBuilder{
-		document: &Document{
-			SpecVersion: Version,
-		},
-	}
-}
-
-func (c *DocumentBuilder) Version(major uint, minor uint) *DocumentBuilder {
-	c.document.SpecVersion = SpecVersion{Major: major, Minor: minor}
-	return c
-}
-
-func (c *DocumentBuilder) Action(name string, arguments ...Argument) *DocumentBuilder {
-	c.document.Actions = append(c.document.Actions, Action{
-		Name: name,
-		Args: arguments,
-	})
-	return c
-}
-
-func (c *DocumentBuilder) Variable(name string, typ string, props ...VariableProperty) *DocumentBuilder {
-	variable := StateVariable{
-		Name:       name,
-		SendEvents: "no",
-		DataType:   typ,
-	}
-	for _, prop := range props {
-		switch prop.Name {
-		case "Default":
-			variable.Default = prop.Value.(string)
-		case "Range":
-			val := prop.Value.([3]int)
-			variable.AllowedValueRange = &AllowedValueRange{
-				Min:  val[0],
-				Max:  val[1],
-				Step: val[2],
-			}
-		case "Only":
-			variable.AllowedValues = prop.Value.(*AllowedValueList)
-		case "Events":
-			variable.SendEvents = "yes"
-		}
-	}
-	c.document.StateVariables = append(c.document.StateVariables, variable)
-
-	return c
-}
-
-func (c *DocumentBuilder) Document() *Document {
-	return c.document
 }

@@ -5,8 +5,7 @@ import (
 )
 
 func NewServiceDescription() *scpd.Document {
-	return scpd.NewDocumentBuilder().
-		Version(1, 0).
+	return scpd.NewDocument(1, 0).
 		Action("GetSearchCapabilities",
 			scpd.OUT("SearchCaps", "SearchCapabilities"),
 		).
@@ -117,6 +116,5 @@ func NewServiceDescription() *scpd.Document {
 		Variable("X_ARG_TYPE_FeatureList", "string").
 		Variable("X_ARG_TYPE_CategoryType", "ui4").
 		Variable("X_ARG_TYPE_RID", "ui4").
-		Variable("X_ARG_TYPE_PosSec", "ui4").
-		Document()
+		Variable("X_ARG_TYPE_PosSec", "ui4")
 }

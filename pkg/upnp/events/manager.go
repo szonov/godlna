@@ -168,7 +168,7 @@ func (m *Manager) NotifyAll(stateVariables map[string]string) {
 	})
 }
 
-func (m *Manager) SendInitialState(sid string, stateVariables map[string]string) {
+func (m *Manager) SendInitialState(sid string, stateVariables map[string]string, delay ...time.Duration) {
 	if len(stateVariables) == 0 {
 		return
 	}
@@ -187,7 +187,10 @@ func (m *Manager) SendInitialState(sid string, stateVariables map[string]string)
 		// function calls when new subscribe happens,
 		// give a time to close connection and deliver "SID" value to subscriber
 		// doc: page 65. > The response must be sent within 30 seconds, including expected transmission time.
-		time.Sleep(2 * time.Second)
+		// look like delay about 2 sec is a good time.Duration
+		if len(delay) > 0 && delay[0] > 0 {
+			time.Sleep(delay[0])
+		}
 		m.notifySubscriber(subscriber, body)
 	}()
 }

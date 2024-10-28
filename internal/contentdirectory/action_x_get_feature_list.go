@@ -1,7 +1,7 @@
 package contentdirectory
 
 import (
-	"github.com/szonov/godlna/internal/soap"
+	"github.com/szonov/godlna/pkg/soap"
 	"net/http"
 )
 

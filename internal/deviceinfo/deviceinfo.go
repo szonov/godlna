@@ -4,7 +4,7 @@ import (
 	"embed"
 	"encoding/xml"
 	"fmt"
-	"github.com/szonov/godlna/internal/soap"
+	"github.com/szonov/godlna/pkg/soap"
 	"github.com/szonov/godlna/pkg/upnp/device"
 	"io/fs"
 	"net/http"

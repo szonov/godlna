@@ -98,16 +98,16 @@ func buildXML(res any) string {
 	}
 }
 
-func SendActionResponse(a *Action, response any, w http.ResponseWriter, statusCode ...int) {
-
-	body := xml.Header +
-		`<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" xmlns:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">` +
+func BuildActionResponse(a *Action, response any) string {
+	return `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" xmlns:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">` +
 		`<s:Body>` +
 		fmt.Sprintf(`<u:%sResponse xmlns:u="%s">`, a.Name, a.ServiceType) +
 		buildXML(response) +
 		fmt.Sprintf(`</u:%sResponse>`, a.Name) +
 		`</s:Body>` +
 		`</s:Envelope>`
+}
 
-	SendXML([]byte(body), w, statusCode...)
+func SendActionResponse(a *Action, response any, w http.ResponseWriter, statusCode ...int) {
+	SendXML([]byte(xml.Header+BuildActionResponse(a, response)), w, statusCode...)
 }

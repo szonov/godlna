@@ -1,7 +1,7 @@
 package logger
 
 import (
-	"github.com/szonov/godlna/internal/soap"
+	"github.com/szonov/godlna/pkg/soap"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"

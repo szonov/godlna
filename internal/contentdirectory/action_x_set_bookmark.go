@@ -3,8 +3,8 @@ package contentdirectory
 import (
 	"github.com/szonov/godlna/internal/db"
 	"github.com/szonov/godlna/internal/dlna"
-	"github.com/szonov/godlna/internal/soap"
 	"github.com/szonov/godlna/internal/upnpav"
+	"github.com/szonov/godlna/pkg/soap"
 	"net/http"
 )
 

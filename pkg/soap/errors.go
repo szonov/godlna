@@ -22,7 +22,7 @@ func (e *UPnPError) Error() string {
 	return fmt.Sprintf("%d %s", e.Code, e.Desc)
 }
 
-func SendError(err error, w http.ResponseWriter, statusCode ...int) {
+func BuildErrorResponse(err error) string {
 	code := ActionFailedErrorCode
 	desc := err.Error()
 	var upnpErr *UPnPError
@@ -30,8 +30,7 @@ func SendError(err error, w http.ResponseWriter, statusCode ...int) {
 		code = upnpErr.Code
 		desc = upnpErr.Desc
 	}
-	body := xml.Header +
-		`<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" xmlns:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">` +
+	return `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" xmlns:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">` +
 		`<s:Body>` +
 		`<s:Fault>` +
 		`<faultcode>s:Client</faultcode>` +
@@ -45,12 +44,14 @@ func SendError(err error, w http.ResponseWriter, statusCode ...int) {
 		`</s:Fault>` +
 		`</s:Body>` +
 		`</s:Envelope>`
+}
 
-	if len(statusCode) == 0 {
-		statusCode = append(statusCode, http.StatusInternalServerError)
+func SendError(err error, w http.ResponseWriter, statusCode ...int) {
+	if len(statusCode) > 0 {
+		SendXML([]byte(xml.Header+BuildErrorResponse(err)), w, statusCode[0])
+	} else {
+		SendXML([]byte(xml.Header+BuildErrorResponse(err)), w, http.StatusInternalServerError)
 	}
-
-	SendXML([]byte(body), w, statusCode...)
 }
 
 func SendUPnPError(code uint, desc string, w http.ResponseWriter, statusCode ...int) {

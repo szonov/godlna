@@ -424,6 +424,8 @@ func (s *Server) UseMinissdpd(socket string) error {
 		buf := &bytes.Buffer{}
 		usn := s.usnFromTarget(target)
 
+		slog.Info("MINISSDPD", "target", target)
+
 		_, err = fmt.Fprintf(buf, "\x04%c%s%c%s%c%s%c%s",
 			len(target), target,
 			len(usn), usn,
@@ -436,6 +438,7 @@ func (s *Server) UseMinissdpd(socket string) error {
 		if _, err = minissdpd.Write(buf.Bytes()); err != nil {
 			return err
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	return nil

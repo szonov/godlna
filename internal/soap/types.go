@@ -48,18 +48,26 @@ func (v *DIDLLite) XMLBody() string {
 	if err != nil {
 		slog.Error(err.Error())
 	}
+
+	// needed for old Samsung TVs
+	res := strings.Replace(string(result), "&#34;", "&quot;", -1)
+	res = strings.Replace(res, "&#39;", "&apos;", -1)
+
 	return `<DIDL-Lite` +
 		` xmlns:dc="http://purl.org/dc/elements/1.1/"` +
 		` xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"` +
 		` xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"` +
 		` xmlns:sec="http://www.sec.co.kr/"` +
 		` xmlns:dlna="urn:schemas-dlna-org:metadata-1-0/">` +
-		string(result) +
+		res +
 		`</DIDL-Lite>`
 }
 
 func xmlValueEncodeLight(s string) string {
-	res := strings.Replace(s, "<", "&lt;", -1)
+	res := s
+	res = strings.Replace(res, "&", "&amp;", -1)
+	res = strings.Replace(res, `"`, "&quot;", -1)
+	res = strings.Replace(res, "<", "&lt;", -1)
 	res = strings.Replace(res, ">", "&gt;", -1)
 	return res
 }

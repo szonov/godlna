@@ -50,6 +50,9 @@ func GetVideoThumb(objectID string) (thumbnailPath string, err error) {
 				watchedPercent = 100
 			} else {
 				watchedPercent = object.Bookmark.PercentOf(meta.Duration)
+				if watchedPercent == 0 {
+					watchedPercent = 1
+				}
 				if watchedPercent > 0 && watchedPercent < 100 {
 					thumbTimeSeek = object.Bookmark
 				}

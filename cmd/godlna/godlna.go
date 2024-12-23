@@ -9,7 +9,7 @@ import (
 	"github.com/szonov/godlna/indexer"
 	"github.com/szonov/godlna/logger"
 	"github.com/szonov/godlna/network"
-	"github.com/szonov/godlna/pkg/upnp/ssdp"
+	"github.com/szonov/godlna/upnp/ssdp"
 	"github.com/yookoala/realpath"
 	"log/slog"
 	"net"

@@ -31,13 +31,13 @@ As a solution I wrote simple dlna proxy which proxies requests to MediaStation a
 
 That is why I'm going to modify current implementation of DLNA server:
 1) as storage for DLNA server use Postgres database. Reasons:
-   - Synology NAS already have it and do not required additional installation
+   - Synology NAS already have it and do not require additional installation
    - If I change synology to bare linux, installation of postgres is very simple task
-   - sqlite in golang required CGO_ENABLED and it is give some problem for me build on macos for DS218play on arm processor.
+   - sqlite in golang required CGO_ENABLED, and it is give some problem for me build on macOS for DS218play on arm processor.
    - postgres golang do not required CGO_ENABLED
-2) store preview images the same way as synology do it - in subfolder @eaDir, it is no problem do the same on bare linux. As a bonus synology FileStation used these thumbnails during browsing. Also coping video folder from one location (server) to another copies also preview images and on new place do not required to rebuild preview images
-3) use ffmpeg for generation video thumbnails (on linux setup is simple, on synology there are comunity packages with ffmpeg 4,5,6,7)
-4) logic of video thumbails
+2) store preview images the same way as synology do it - in subfolder @eaDir, it is no problem do the same on bare linux. As a bonus synology FileStation used these thumbnails during browsing. Also coping video folder from one location (server) to another copies also preview images and on new place do not require to rebuild preview images
+3) use ffmpeg for generation video thumbnails (on linux setup is simple, on synology there are community packages with ffmpeg 4,5,6,7)
+4) logic of video thumbnails
    - if video not watched yet give a video frame - 10% of full duration
    - if video watched percent between 0 and 100 - use video frame from watched position and show bottom orange line with filled watched percent
    - if video fully watched use video frame - 10% of full duration and  show bottom green line fully filled

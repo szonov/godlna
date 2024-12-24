@@ -10,7 +10,6 @@ import (
 	"github.com/szonov/godlna/logger"
 	"github.com/szonov/godlna/network"
 	"github.com/szonov/godlna/upnp/ssdp"
-	"github.com/yookoala/realpath"
 	"log/slog"
 	"net"
 	"os"
@@ -54,13 +53,11 @@ func main() {
 		<-c
 		// terminate indexer, ssdp, dlna servers
 		slog.Debug("gracefully shutting down...")
-
-		idx.Stop()
 		ssdpServer.Shutdown()
 		dlnaServer.Shutdown()
 	}()
 
-	idx.Start()
+	idx.FullScan()
 	ssdpServer.Start()
 	_ = dlnaServer.ListenAndServe()
 }
@@ -84,10 +81,6 @@ func validateRootDirectory(videoDirectory string) string {
 	var err error
 
 	if videoDirectory, err = filepath.Abs(videoDirectory); err != nil {
-		criticalError(err)
-	}
-
-	if videoDirectory, err = realpath.Realpath(videoDirectory); err != nil {
 		criticalError(err)
 	}
 

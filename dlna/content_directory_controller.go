@@ -267,7 +267,7 @@ func (ctl *ContentDirectoryController) HandleContentURL(w http.ResponseWriter, r
 		w.Header().Set("transferMode.dlna.org", "Interactive")
 		w.Header().Set("contentFeatures.dlna.org", o.thumbProtocolInfo())
 		w.Header().Set("Content-Type", "image/jpeg")
-		http.ServeFile(w, r, filepath.Dir(o.Path)+"/@eaDir/"+filepath.Base(o.Path)+"/SYNOVIDEO_VIDEO_SCREENSHOT.jpg")
+		http.ServeFile(w, r, indexer.ThumbPath(o.Path))
 		return
 	}
 

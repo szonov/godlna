@@ -12,7 +12,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 )
 
 var ffmpegBinPath = "ffmpeg"
@@ -137,8 +136,7 @@ func transformAndSave(r io.Reader, dest string, watchedPercent uint8) (err error
 
 func MakeDSMStyleThumbnail(srcVideoFile string, duration int64, b sql.NullInt64, forceRecreate bool) {
 
-	dir := filepath.Dir(srcVideoFile) + "/@eaDir/" + filepath.Base(srcVideoFile)
-	im := dir + "/SYNOVIDEO_VIDEO_SCREENSHOT.jpg"
+	im := ThumbPath(srcVideoFile)
 
 	if !FileExists(im) || forceRecreate {
 		bookmark := b.Int64

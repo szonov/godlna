@@ -16,6 +16,10 @@ var videoExtensions = []string{
 	".vob", ".ts", ".flv", ".xvid", ".mov", ".3gp", ".rm", ".rmvb", ".webm",
 }
 
+func ThumbPath(videoPath string) string {
+	return filepath.Dir(videoPath) + "/@eaDir/" + filepath.Base(videoPath) + "/SYNOVIDEO_VIDEO_SCREENSHOT.jpg"
+}
+
 func IsPathIgnored(fullPath string) bool {
 	checkPath := fullPath + "/"
 	// dot files (hidden files) and synology special directories used for indexing

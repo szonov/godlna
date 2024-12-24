@@ -16,4 +16,21 @@ rsyno: ## Build and send to first synology box
 	scp -O ./scripts/synology-install.sh rsyno:godlna/
 	ssh rsyno chmod 755 godlna/godlna
 	ssh rsyno chmod 755 godlna/synology-install.sh
-	rm ./godlna	
+	rm ./godlna
+
+
+box: ## Build and send to home box (arm64)
+	GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o ./godlna cmd/godlna/godlna.go
+	scp -O godlna home-box:godlna/
+	scp -O ./scripts/synology-install.sh home-box:godlna/
+	ssh home-box chmod 755 godlna/godlna
+	ssh home-box chmod 755 godlna/synology-install.sh
+	rm ./godlna
+
+nas: ## Build and send to home nas (amd64)
+	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ./godlna cmd/godlna/godlna.go
+	scp -O godlna home-nas:godlna/
+	scp -O ./scripts/synology-install.sh home-nas:godlna/
+	ssh home-nas chmod 755 godlna/godlna
+	ssh home-nas chmod 755 godlna/synology-install.sh
+	rm ./godlna

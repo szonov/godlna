@@ -10,7 +10,6 @@ import (
 	"os"
 	"path"
 	"sync"
-	"time"
 )
 
 const (
@@ -19,74 +18,35 @@ const (
 )
 
 type Indexer struct {
-	dir       string
-	db        *pgxpool.Pool
-	mu        *sync.Mutex
-	chunkSize int
-	watcher   *Watcher
-	done      chan struct{}
+	dir string
+	db  *pgxpool.Pool
+	mu  *sync.Mutex
 }
 
 func NewIndexer(dir string, db *pgxpool.Pool) *Indexer {
-	idx := &Indexer{
-		dir:       dir,
-		db:        db,
-		mu:        &sync.Mutex{},
-		chunkSize: 100,
-	}
-	idx.watcher = NewWatcher(dir, idx.addToQueue)
-	return idx
-}
-
-func (idx *Indexer) Start() {
-	go idx.StartAndListen()
-}
-
-func (idx *Indexer) StartAndListen() {
-	idx.done = make(chan struct{})
-	idx.watcher.Start()
-	idx.fullScan()
-	idx.listenQueue()
-}
-
-func (idx *Indexer) Stop() {
-	idx.watcher.Stop()
-	if idx.done == nil {
-		return
-	}
-	close(idx.done)
-}
-
-func (idx *Indexer) listenQueue() {
-	idx.checkQueueAndProcess()
-	for {
-		timer := time.NewTimer(30 * time.Second)
-		select {
-		case <-idx.done:
-			idx.done = nil
-			return
-		case <-timer.C:
-		}
-		idx.checkQueueAndProcess()
+	return &Indexer{
+		dir: dir,
+		db:  db,
+		mu:  &sync.Mutex{},
 	}
 }
 
-func (idx *Indexer) checkQueueAndProcess() {
-	slog.Info("checkQueueAndProcess")
-	if idx.parseQueueChunk() > 0 {
-		idx.checkQueueAndProcess()
-	}
-}
+func (idx *Indexer) FullScan() {
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
 
-func (idx *Indexer) fullScan() {
 	var err error
 	if _, err = idx.db.Exec(context.Background(), "UPDATE objects SET online = false"); err != nil {
 		slog.Error(err.Error())
 		return
 	}
 	if !IsPathIgnored(idx.dir) {
-		idx.makeIndex(idx.dir)
-		idx.scanDir(idx.dir)
+		if info, err := os.Stat(idx.dir); err == nil {
+			idx.createOrUpdateObject(idx.dir, info)
+			idx.scanDir(idx.dir)
+		} else {
+			_, _ = idx.db.Exec(context.Background(), "DELETE FROM objects WHERE path = $1", idx.dir)
+		}
 	}
 	if _, err = idx.db.Exec(context.Background(), "DELETE FROM objects WHERE online = false"); err != nil {
 		slog.Error(err.Error())
@@ -98,8 +58,8 @@ func (idx *Indexer) createOrUpdateObject(fullPath string, info fs.FileInfo) {
 		slog.Info("-- DIR", "path", fullPath)
 
 		query := `INSERT INTO objects (path, typ, date, online) 
-		VALUES ($1, $2, $3, true) 
-		ON CONFLICT(path) DO UPDATE SET typ = EXCLUDED.typ, date = EXCLUDED.date, online = EXCLUDED.online`
+		VALUES ($1, $2, $3, true) ON CONFLICT(path) DO 
+		UPDATE SET typ = EXCLUDED.typ, date = EXCLUDED.date, online = EXCLUDED.online`
 
 		_, err := idx.db.Exec(
 			context.Background(),
@@ -118,6 +78,14 @@ func (idx *Indexer) createOrUpdateObject(fullPath string, info fs.FileInfo) {
 
 	if IsVideoFile(fullPath) {
 		slog.Info("-- VID", "path", fullPath)
+
+		var vID int64
+		var vTyp int
+		query := "UPDATE objects SET online = true WHERE path = $1 RETURNING id, typ"
+		_ = idx.db.QueryRow(context.Background(), query, fullPath).Scan(&vID, &vTyp)
+		if vID > 0 && vTyp == TypeVideo && FileExists(ThumbPath(fullPath)) {
+			return
+		}
 
 		//var vID, vSize, vDate int64
 		//var vTyp int
@@ -147,7 +115,7 @@ func (idx *Indexer) createOrUpdateObject(fullPath string, info fs.FileInfo) {
 			return
 		}
 
-		query := `INSERT INTO objects 
+		query = `INSERT INTO objects 
     		(path, typ, format, file_size, video_codec, audio_codec, width, height, channels, bitrate, frequency, duration, date, online) 
 		VALUES 
 			($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, true) 
@@ -219,62 +187,4 @@ func (idx *Indexer) scanDir(dir string) {
 		}
 	}
 	return
-}
-
-func (idx *Indexer) makeIndex(fullPath string) {
-
-	slog.Info("[makeIndex]", "path", fullPath)
-
-	info, err := os.Stat(fullPath)
-	if err != nil {
-		// file or directory does not exist or inaccessible
-		_, _ = idx.db.Exec(context.Background(), "DELETE FROM objects WHERE path = $1", fullPath)
-		return
-	}
-
-	idx.createOrUpdateObject(fullPath, info)
-}
-
-func (idx *Indexer) addToQueue(p string) {
-	if IsPathIgnored(p) {
-		return
-	}
-	idx.mu.Lock()
-	slog.Info("queue", "p", p)
-	_, _ = idx.db.Exec(context.Background(), "INSERT INTO queue (path) values ($1) ON CONFLICT DO NOTHING", p)
-	idx.mu.Unlock()
-}
-
-// parseQueueChunk get configured amount of queued paths and index every path
-// returns amount of processed paths
-func (idx *Indexer) parseQueueChunk() int {
-	paths := make([]string, 0)
-
-	idx.mu.Lock()
-	query := "DELETE FROM queue WHERE id IN (SELECT id FROM queue ORDER BY id LIMIT $1) RETURNING path"
-	rows, err := idx.db.Query(context.Background(), query, idx.chunkSize)
-
-	if err != nil {
-		idx.mu.Unlock()
-		slog.Error(err.Error())
-		return 0
-	}
-
-	for rows.Next() {
-		var p string
-		if err = rows.Scan(&p); err != nil {
-			slog.Error("unable to scan queue row", err.Error())
-		} else {
-			paths = append(paths, p)
-		}
-	}
-
-	rows.Close()
-	idx.mu.Unlock()
-
-	for _, fullPath := range paths {
-		idx.makeIndex(fullPath)
-	}
-
-	return len(paths)
 }

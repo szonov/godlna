@@ -5,8 +5,6 @@ go 1.23
 require (
 	github.com/disintegration/imaging v1.6.2
 	github.com/jackc/pgx/v5 v5.7.1
-	github.com/rjeczalik/notify v0.9.3
-	github.com/yookoala/realpath v1.0.0
 	golang.org/x/net v0.33.0
 )
 

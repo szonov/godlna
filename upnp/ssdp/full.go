@@ -1,7 +1,6 @@
 package ssdp
 
 import (
-	"bytes"
 	"fmt"
 	"golang.org/x/net/ipv4"
 	"log/slog"
@@ -13,13 +12,9 @@ import (
 	"time"
 )
 
-const (
-	MulticastAddrPort string = "239.255.255.250:1900"
-)
-
-// Server Describes structure of SSDP Server
+// FullServer Describes structure of SSDP Server which advertise (NOTIFY) and handle M-SEARCH requests.
 // reference: https://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.0-20080424.pdf
-type Server struct {
+type FullServer struct {
 	// [page 16] LOCATION Required.
 	// Contains a URL to the UPnP description of the root device. Normally the host portion contains a literal IP
 	// address rather than a domain name in unmanaged networks. Specified by UPnP vendor. Single URL.
@@ -90,16 +85,7 @@ type Server struct {
 	cacheControl string
 }
 
-func (s *Server) Start() *Server {
-	go func() {
-		if err := s.ListenAndServe(); err != nil {
-			panic(err)
-		}
-	}()
-	return s
-}
-
-func (s *Server) ListenAndServe() error {
+func (s *FullServer) Start() error {
 	var err error
 	if err = s.validateAndSetDefaults(); err != nil {
 		slog.Error(err.Error())
@@ -135,7 +121,7 @@ func (s *Server) ListenAndServe() error {
 	return nil
 }
 
-func (s *Server) Shutdown() {
+func (s *FullServer) Stop() {
 	slog.Info("stopping SSDP server",
 		slog.String("address", MulticastAddrPort),
 		slog.String("if", s.Interface.Name),
@@ -147,8 +133,8 @@ func (s *Server) Shutdown() {
 	}
 }
 
-// listen Listen for incoming UDP messages
-func (s *Server) listen() {
+// listen for incoming UDP messages
+func (s *FullServer) listen() {
 	for {
 		size := s.Interface.MTU
 		if size <= 0 || size > 65536 {
@@ -170,8 +156,8 @@ func (s *Server) listen() {
 }
 
 // multicast start notification daemon.
-// Sends every Server.NotifyInterval new notifications about every targets
-func (s *Server) multicast() {
+// Sends every FullServer.NotifyInterval new notifications about every targets
+func (s *FullServer) multicast() {
 
 	tick := time.NewTicker(s.NotifyInterval)
 	defer tick.Stop()
@@ -185,7 +171,7 @@ func (s *Server) multicast() {
 		s.sendAlive()
 	}
 }
-func (s *Server) parseUdpMessage(buf []byte, sender *net.UDPAddr) {
+func (s *FullServer) parseUdpMessage(buf []byte, sender *net.UDPAddr) {
 
 	lines := strings.Split(string(buf), "\r\n")
 
@@ -281,7 +267,7 @@ func (s *Server) parseUdpMessage(buf []byte, sender *net.UDPAddr) {
 	}
 }
 
-func (s *Server) send(msg string, to *net.UDPAddr, delay ...time.Duration) {
+func (s *FullServer) send(msg string, to *net.UDPAddr, delay ...time.Duration) {
 	if len(delay) > 0 {
 		go func() {
 			select {
@@ -300,7 +286,7 @@ func (s *Server) send(msg string, to *net.UDPAddr, delay ...time.Duration) {
 	}
 }
 
-func (s *Server) sendAlive() {
+func (s *FullServer) sendAlive() {
 	for _, target := range s.targets {
 		msg := s.makeAliveMessage(target)
 		// [page 15] Devices should wait a random interval less than 100 milliseconds before sending
@@ -312,21 +298,21 @@ func (s *Server) sendAlive() {
 	}
 }
 
-func (s *Server) sendByeBye() {
+func (s *FullServer) sendByeBye() {
 	for _, target := range s.targets {
 		msg := s.makeByeByeMessage(target)
 		s.send(msg, s.udpAddr)
 	}
 }
 
-func (s *Server) usnFromTarget(target string) string {
+func (s *FullServer) usnFromTarget(target string) string {
 	if s.DeviceUDN == target {
 		return s.DeviceUDN
 	}
 	return s.DeviceUDN + "::" + target
 }
 
-func (s *Server) makeAliveMessage(target string) string {
+func (s *FullServer) makeAliveMessage(target string) string {
 	return "NOTIFY * HTTP/1.1\r\n" +
 		"HOST: " + MulticastAddrPort + "\r\n" +
 		"CACHE-CONTROL: " + s.cacheControl + "\r\n" +
@@ -334,18 +320,20 @@ func (s *Server) makeAliveMessage(target string) string {
 		"SERVER: " + s.ServerHeader + "\r\n" +
 		"NT: " + target + "\r\n" +
 		"USN: " + s.usnFromTarget(target) + "\r\n" +
-		"NTS: ssdp:alive\r\n"
+		"NTS: " + Alive + "\r\n" +
+		"\r\n"
 }
 
-func (s *Server) makeByeByeMessage(target string) string {
+func (s *FullServer) makeByeByeMessage(target string) string {
 	return "NOTIFY * HTTP/1.1\r\n" +
 		"HOST: " + MulticastAddrPort + "\r\n" +
 		"NT: " + target + "\r\n" +
 		"USN: " + s.usnFromTarget(target) + "\r\n" +
-		"NTS: ssdp:byebye\r\n"
+		"NTS: " + Bye + "\r\n" +
+		"\r\n"
 }
 
-func (s *Server) makeMSearchResponse(target string) string {
+func (s *FullServer) makeMSearchResponse(target string) string {
 	return "HTTP/1.1 200 OK\r\n" +
 		"CACHE-CONTROL: " + s.cacheControl + "\r\n" +
 		"DATE: " + time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT") + "\r\n" +
@@ -358,7 +346,7 @@ func (s *Server) makeMSearchResponse(target string) string {
 		"\r\n"
 }
 
-func (s *Server) validateAndSetDefaults() error {
+func (s *FullServer) validateAndSetDefaults() error {
 	if s.Location == "" {
 		return fmt.Errorf("no Location specified")
 	}
@@ -397,49 +385,6 @@ func (s *Server) validateAndSetDefaults() error {
 		s.DeviceUDN = "uuid:" + s.DeviceUDN
 	}
 	s.targets = append([]string{s.DeviceUDN, "upnp:rootdevice", s.DeviceType}, s.ServiceList...)
-
-	return nil
-}
-
-func (s *Server) UseMinissdpd(socket string) error {
-	if socket == "" {
-		socket = "/var/run/minissdpd.sock"
-	}
-	var err error
-	if err = s.validateAndSetDefaults(); err != nil {
-		return err
-	}
-	var minissdpd net.Conn
-	if minissdpd, err = net.Dial("unix", socket); err != nil {
-		return err
-	}
-	defer func(minissdpd net.Conn) {
-		err = minissdpd.Close()
-		if err != nil {
-			slog.Error("error closing minissdpd", slog.String("error", err.Error()))
-		}
-	}(minissdpd)
-
-	for _, target := range s.targets {
-		buf := &bytes.Buffer{}
-		usn := s.usnFromTarget(target)
-
-		slog.Info("MINISSDPD", "target", target)
-
-		_, err = fmt.Fprintf(buf, "\x04%c%s%c%s%c%s%c%s",
-			len(target), target,
-			len(usn), usn,
-			len(s.ServerHeader), s.ServerHeader,
-			len(s.Location), s.Location,
-		)
-		if err != nil {
-			return err
-		}
-		if _, err = minissdpd.Write(buf.Bytes()); err != nil {
-			return err
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
 
 	return nil
 }

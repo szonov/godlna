@@ -323,8 +323,8 @@ func (ctl *ContentDirectoryController) upnpavObj(o *dbObject, parentID int64, r 
 		}
 	}
 
-	thumbURL := fmt.Sprintf("http://%s/content/%d.jpg", r.Host, o.ID)
-	videoURL := fmt.Sprintf("http://%s/content/%d%s", r.Host, o.ID, filepath.Ext(o.Path))
+	thumbURL := fmt.Sprintf("http://%s/ct/t/%d.jpg", r.Host, o.ID)
+	videoURL := fmt.Sprintf("http://%s/ct/v/%d%s", r.Host, o.ID, filepath.Ext(o.Path))
 
 	// bookmark
 	var bookmark upnpav.Bookmark

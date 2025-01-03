@@ -127,7 +127,8 @@ func (s *Server) setupRoutes(mux *http.ServeMux) error {
 	mux.HandleFunc("/cds/evt", s.hook(cdsController.HandleEventSubURL))
 
 	// content
-	mux.HandleFunc("/content/{obj}", s.hook(cdsController.HandleContentURL))
+	mux.HandleFunc("/ct/t/{obj}", s.hook(cdsController.HandleContentURL))
+	mux.HandleFunc("/ct/v/{obj}", s.hook(cdsController.HandleContentURL))
 
 	return nil
 }

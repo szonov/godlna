@@ -15,15 +15,16 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"syscall"
 )
 
 var (
-	dsn             = "database=godlna"
-	videoDirectory  = ""
-	friendlyName    = "GoDLNA"
-	listenInterface = ""
-	listenIP        = ""
-	listenPort      = 50003
+	dsn             string
+	videoDirectory  string
+	friendlyName    string
+	listenInterface string
+	listenIP        string
+	listenPort      int
 )
 
 func main() {
@@ -31,10 +32,10 @@ func main() {
 
 	flag.StringVar(&dsn, "dsn", "database=godlna", "database `dsn` string")
 	flag.StringVar(&videoDirectory, "root", defaultVideoRoot(), "`directory` containing video files")
-	flag.StringVar(&friendlyName, "name", friendlyName, "`friendlyName` as you see it on TV")
+	flag.StringVar(&friendlyName, "name", "GoDLNA", "`friendlyName` as you see it on TV")
 	flag.StringVar(&listenInterface, "eth", v4faceDefault.Interface.Name, "network `interface` name")
 	flag.StringVar(&listenIP, "ip", v4faceDefault.IP, "on which `ip` run dlna server")
-	flag.IntVar(&listenPort, "port", listenPort, "on which `port` run dlna server")
+	flag.IntVar(&listenPort, "port", 50003, "on which `port` run dlna server")
 	flag.Parse()
 
 	logger.InitLogger(slog.LevelDebug)
@@ -42,9 +43,11 @@ func main() {
 	videoDirectory = validateRootDirectory(videoDirectory)
 	psql := makeDbConnection(dsn)
 	idx := makeIndexer(videoDirectory, psql)
+	//_, listenAddress := makeNetwork(listenInterface, listenIP)
 	v4face, listenAddress := makeNetwork(listenInterface, listenIP)
 	dlnaServer := makeDLNAServer(videoDirectory, friendlyName, listenAddress, psql)
-	ssdpServer := makeSsdpServer(dlnaServer, v4face.Interface)
+	ssdpServer := makeFullSsdpServer(dlnaServer, v4face.Interface)
+	//ssdpServer := makeMiniSsdpServer(dlnaServer)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -53,12 +56,12 @@ func main() {
 		<-c
 		// terminate indexer, ssdp, dlna servers
 		slog.Debug("gracefully shutting down...")
-		ssdpServer.Shutdown()
+		ssdpServer.Stop()
 		dlnaServer.Shutdown()
 	}()
 
 	idx.FullScan()
-	ssdpServer.Start()
+	go startSsdpServer(ssdpServer)
 	_ = dlnaServer.ListenAndServe()
 }
 
@@ -117,22 +120,43 @@ func makeNetwork(eth string, ip string) (network.V4Interface, string) {
 func makeDLNAServer(root string, friendlyName string, listenAddress string, psql *pgxpool.Pool) *dlna.Server {
 	srv := dlna.NewServer(root, friendlyName, listenAddress, psql)
 	srv.DebugRequest = true
+	//srv.DebugRequestHeader = true
+	//srv.DebugRequestBody = true
 	return srv
 }
 
-func makeSsdpServer(s *dlna.Server, iface *net.Interface) *ssdp.Server {
+func makeFullSsdpServer(s *dlna.Server, iface *net.Interface) ssdp.Server {
 	services := make([]string, 0)
 	for _, serv := range s.DeviceDescription.Device.ServiceList {
 		services = append(services, serv.ServiceType)
 	}
-
-	return &ssdp.Server{
+	return &ssdp.FullServer{
 		Location:     "http://" + s.ListenAddress + s.DeviceDescription.Location,
 		ServerHeader: dlna.ServerHeader,
 		DeviceType:   s.DeviceDescription.Device.DeviceType,
 		DeviceUDN:    s.DeviceDescription.Device.UDN,
 		ServiceList:  services,
 		Interface:    iface,
+	}
+}
+
+func makeMiniSsdpServer(s *dlna.Server) ssdp.Server {
+	services := make([]string, 0)
+	for _, serv := range s.DeviceDescription.Device.ServiceList {
+		services = append(services, serv.ServiceType)
+	}
+	return &ssdp.MiniServer{
+		Location:     "http://" + s.ListenAddress + s.DeviceDescription.Location,
+		ServerHeader: dlna.ServerHeader,
+		DeviceType:   s.DeviceDescription.Device.DeviceType,
+		DeviceUDN:    s.DeviceDescription.Device.UDN,
+		ServiceList:  services,
+	}
+}
+
+func startSsdpServer(srv ssdp.Server) {
+	if err := srv.Start(); err != nil {
+		criticalError(err)
 	}
 }
 
@@ -143,10 +167,26 @@ func defaultVideoRoot() string {
 	if indexer.FileExists("/volume2/video") {
 		return "/volume2/video"
 	}
+	if d, err := filepath.Abs("./"); err == nil {
+		return d
+	}
 	return "./"
 }
 
 func criticalError(err error) {
 	slog.Error(err.Error())
 	os.Exit(1)
+}
+
+func isSocket(path string) bool {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false
+	}
+	_, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false
+	}
+	mode := info.Mode()
+	return mode&os.ModeSocket != 0
 }

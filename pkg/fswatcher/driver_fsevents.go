@@ -143,6 +143,11 @@ func (w *fsevents) withIgnoreFn(fn IgnoreFn) {
 	w.ignoreFn = fn
 }
 
+// watchList returns all paths explicitly added with [fsevents.addDirectory]
+func (w *fsevents) watchList() []string {
+	return w.roots
+}
+
 // shouldIgnore check if file/dir basename should be excluded from eventing
 func (w *fsevents) shouldIgnore(absPath string, isDir bool) bool {
 	if w.ignoreFn == nil {

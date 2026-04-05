@@ -18,3 +18,4 @@ func (w *other) stop() error                   { return nil }
 func (w *other) withEventHandler(EventHandler) {}
 func (w *other) withErrorHandler(ErrorHandler) {}
 func (w *other) withIgnoreFn(IgnoreFn)         {}
+func (w *other) watchList()                    { return nil }

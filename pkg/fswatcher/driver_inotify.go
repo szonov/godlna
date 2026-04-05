@@ -125,6 +125,11 @@ func (w *inotify) withIgnoreFn(fn IgnoreFn) {
 	w.ignoreFn = fn
 }
 
+// watchList returns all paths explicitly added with [inotify.addDirectory]
+func (w *inotify) watchList() []string {
+	return w.roots
+}
+
 // shouldIgnore check if file/dir basename should be excluded from eventing
 func (w *inotify) shouldIgnore(absPath string, isDir bool) bool {
 	if w.ignoreFn == nil {

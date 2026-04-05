@@ -91,18 +91,29 @@ type Watcher struct {
 }
 
 // New creates a new Watcher.
-func New() (*Watcher, error) {
+func New(dirs ...string) (*Watcher, error) {
 	d, err := newDriver()
 	if err != nil {
 		return nil, err
 	}
-	return &Watcher{d: d}, nil
+	w := &Watcher{d: d}
+	for _, dir := range dirs {
+		if err = w.Add(dir); err != nil {
+			return nil, err
+		}
+	}
+	return w, nil
 }
 
 // Add adds directory to watch.
 // NOTICE: directory should be added before watcher starts
 func (w *Watcher) Add(dir string) error {
 	return w.d.addDirectory(dir)
+}
+
+// WatchList returns all paths explicitly added with [Watcher.Add]
+func (w *Watcher) WatchList() []string {
+	return w.d.watchList()
 }
 
 // Start starts the watcher
@@ -137,4 +148,5 @@ type driver interface {
 	withEventHandler(EventHandler)
 	withErrorHandler(ErrorHandler)
 	withIgnoreFn(IgnoreFn)
+	watchList() []string
 }

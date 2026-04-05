@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/szonov/godlna/pkg/fswatcher"
 )
@@ -99,10 +101,11 @@ type ObjectSearchResponse struct {
 }
 
 type Backend struct {
-	roots []string
-	d     DatabaseDriver
-	w     *fswatcher.Watcher
-	done  chan struct{}
+	roots     []string
+	d         DatabaseDriver
+	w         *fswatcher.Watcher
+	done      chan struct{}
+	dirtyFlag uint32
 }
 
 func NewBackend(roots []string, d DatabaseDriver) (*Backend, error) {
@@ -151,10 +154,23 @@ func (b *Backend) onWatcherEvent(e fswatcher.Event) {
 	case fswatcher.WalkComplete:
 		err = b.d.DeleteOfflineObjects()
 		if err == nil {
-			b.ReindexDirty()
+			go func() {
+				b.ReindexDirty()
+				for {
+					select {
+					case <-b.done:
+						return
+					case <-time.After(30 * time.Second):
+						b.ReindexDirty()
+					}
+				}
+			}()
+
 		}
 	case fswatcher.Index:
 		err = b.d.Index(e.IsDir, e.Name)
+		// setup dirtyFlag when something new
+		atomic.StoreUint32(&b.dirtyFlag, 1)
 	case fswatcher.Remove:
 		err = b.d.Remove(e.IsDir, e.Name)
 	case fswatcher.Rename:
@@ -289,17 +305,6 @@ func (b *Backend) SetBookmark(id int, bookmark int64) error {
 	return nil
 }
 
-func (b *Backend) Check2() {
-	slog.Info("Check2")
-	o, err := b.Object(4)
-	if err != nil {
-		slog.Error(err.Error())
-	}
-	if err := b.Reindex(o); err != nil {
-		slog.Error(err.Error())
-	}
-}
-
 func (b *Backend) Reindex(o *Object) error {
 	if o == nil || o.ID <= 0 || o.Typ != ObjectVideo {
 		return nil
@@ -328,6 +333,13 @@ func (b *Backend) Reindex(o *Object) error {
 
 func (b *Backend) ReindexDirty() {
 
+	if !atomic.CompareAndSwapUint32(&b.dirtyFlag, 1, 0) {
+		slog.Debug(">>>>>>> ReindexDirty - skip, flag is 0")
+		return
+	}
+
+	slog.Debug(">>>>>>> ReindexDirty")
+
 	filter := ObjectSearchFilter{
 		Dirty:         sql.NullBool{Bool: true, Valid: true},
 		LastVisitedId: sql.NullInt64{Int64: 0, Valid: true},
@@ -355,6 +367,8 @@ func (b *Backend) ReindexDirty() {
 
 			if err := b.Reindex(o); err != nil {
 				slog.Error("ReindexDirty :: Reindex", "err", err, "o", o)
+			} else {
+				slog.Debug("ReindexDirty", "id", o.ID, "path", o.Path)
 			}
 		}
 	}

@@ -3,7 +3,6 @@ package backend
 import (
 	"database/sql"
 	"errors"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -32,7 +31,8 @@ func makeThumbnail(videoFile string, duration int64, bookmark sql.NullInt64) err
 			bm = duration
 		}
 	}
-	slog.Info("MakeThumbnail", "dur", duration, "bm", bm, "bookmark", bookmark)
+
+	//slog.Info("MakeThumbnail", "dur", duration, "bm", bm, "bookmark", bookmark)
 
 	return ffmpeg.Thumbnail(
 		videoFile,

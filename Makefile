@@ -10,10 +10,15 @@ help: ## Show this help
 	@printf "\033[33m%s:\033[0m\n" 'Available commands'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[32m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+mac: ## Build on local Mac
+	go build -ldflags="-s -w" -o ./godlna cmd/godlna/godlna.go
+	./godlna -root /Users/zonov/DemoVideo -name DemoVideo
+
 rsyno: ## Build and send to first synology box
 	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ./godlna cmd/godlna/godlna.go
 	scp -O godlna rsyno:godlna/
 	scp -O ./scripts/synology-install.sh rsyno:godlna/
+	scp -O ./scripts/schema.psql.sql rsyno:godlna/
 	ssh rsyno chmod 755 godlna/godlna
 	ssh rsyno chmod 755 godlna/synology-install.sh
 	rm ./godlna
@@ -23,6 +28,7 @@ box: ## Build and send to home box (arm64)
 	GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o ./godlna cmd/godlna/godlna.go
 	scp -O godlna home-box:godlna/
 	scp -O ./scripts/synology-install.sh home-box:godlna/
+	scp -O ./scripts/schema.psql.sql home-box:godlna/
 	ssh home-box chmod 755 godlna/godlna
 	ssh home-box chmod 755 godlna/synology-install.sh
 	rm ./godlna
@@ -31,6 +37,7 @@ nas: ## Build and send to home nas (amd64)
 	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ./godlna cmd/godlna/godlna.go
 	scp -O godlna home-nas:godlna/
 	scp -O ./scripts/synology-install.sh home-nas:godlna/
+	scp -O ./scripts/schema.psql.sql home-nas:godlna/
 	ssh home-nas chmod 755 godlna/godlna
 	ssh home-nas chmod 755 godlna/synology-install.sh
 	rm ./godlna

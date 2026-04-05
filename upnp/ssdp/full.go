@@ -2,7 +2,6 @@ package ssdp
 
 import (
 	"fmt"
-	"golang.org/x/net/ipv4"
 	"log/slog"
 	"math/rand"
 	"net"
@@ -10,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/net/ipv4"
 )
 
 // FullServer Describes structure of SSDP Server which advertise (NOTIFY) and handle M-SEARCH requests.

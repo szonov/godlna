@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/szonov/godlna/logger"
-	"github.com/szonov/godlna/upnp/device"
 	"log/slog"
 	"net/http"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/szonov/godlna/dlna/backend"
+	"github.com/szonov/godlna/logger"
+	"github.com/szonov/godlna/upnp/device"
 )
 
 var ServerHeader = fmt.Sprintf("%s/%s %s %s", runtime.GOOS, runtime.Version(), "UPnP/1.0", "GoUPnP/1.0")
@@ -19,20 +20,18 @@ var ServerHeader = fmt.Sprintf("%s/%s %s %s", runtime.GOOS, runtime.Version(), "
 type Server struct {
 	ListenAddress      string
 	DeviceDescription  *device.Description
-	RootDirectory      string
 	DebugRequest       bool
 	DebugRequestHeader bool
 	DebugRequestBody   bool
-	Psql               *pgxpool.Pool
 	srv                *http.Server
+	back               *backend.Backend
 }
 
-func NewServer(root string, friendlyName string, listenAddr string, psql *pgxpool.Pool) *Server {
+func NewServer(friendlyName string, listenAddr string, back *backend.Backend) *Server {
 	return &Server{
 		ListenAddress:     listenAddr,
-		RootDirectory:     root,
 		DeviceDescription: makeDeviceDescription(friendlyName, listenAddr),
-		Psql:              psql,
+		back:              back,
 	}
 }
 
@@ -110,7 +109,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) error {
 		return err
 	}
 
-	if cdsController, err = NewContentDirectoryController(s); err != nil {
+	if cdsController, err = NewContentDirectoryController(s.back); err != nil {
 		return err
 	}
 

@@ -4,9 +4,10 @@ import (
 	"embed"
 	"encoding/xml"
 	"fmt"
-	"github.com/szonov/godlna/soap"
 	"io/fs"
 	"net/http"
+
+	"github.com/szonov/godlna/soap"
 )
 
 //go:embed icons

@@ -4,63 +4,97 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/szonov/godlna/dlna"
-	"github.com/szonov/godlna/indexer"
-	"github.com/szonov/godlna/logger"
-	"github.com/szonov/godlna/network"
-	"github.com/szonov/godlna/upnp/ssdp"
 	"log/slog"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/szonov/godlna/dlna"
+	"github.com/szonov/godlna/dlna/backend"
+	"github.com/szonov/godlna/logger"
+	"github.com/szonov/godlna/network"
+	"github.com/szonov/godlna/pkg/ffmpeg"
+	"github.com/szonov/godlna/pkg/ffprobe"
+	"github.com/szonov/godlna/upnp/ssdp"
 )
+
+type StringList []string
+
+func (s *StringList) String() string {
+	return fmt.Sprintf("%v", *s)
+}
+
+func (s *StringList) Set(value string) error {
+	*s = append(*s, value)
+	return nil
+}
 
 var (
 	dsn             string
-	videoDirectory  string
+	videoDirs       StringList
 	friendlyName    string
 	listenInterface string
 	listenIP        string
 	listenPort      int
+	minissdpdSocket string
 )
 
 func main() {
 	v4faceDefault := network.DefaultV4Interface()
 
 	flag.StringVar(&dsn, "dsn", "database=godlna", "database `dsn` string")
-	flag.StringVar(&videoDirectory, "root", defaultVideoRoot(), "`directory` containing video files")
+	flag.Var(&videoDirs, "root", "`directory` containing video files, can be specified multiple times. (default is "+defaultVideoRoot()+")")
 	flag.StringVar(&friendlyName, "name", "GoDLNA", "`friendlyName` as you see it on TV")
 	flag.StringVar(&listenInterface, "eth", v4faceDefault.Interface.Name, "network `interface` name")
 	flag.StringVar(&listenIP, "ip", v4faceDefault.IP, "on which `ip` run dlna server")
 	flag.IntVar(&listenPort, "port", 50003, "on which `port` run dlna server")
+	flag.StringVar(&minissdpdSocket, "minissdpd", defaultMinissdpd(), "Minissdp `socket` file, pass empty string to disable")
 	flag.Parse()
 
 	logger.InitLogger(slog.LevelDebug)
 
-	videoDirectory = validateRootDirectory(videoDirectory)
+	if len(videoDirs) == 0 {
+		videoDirs = append(videoDirs, defaultVideoRoot())
+	}
+
 	psql := makeDbConnection(dsn)
-	idx := makeIndexer(videoDirectory, psql)
-	//_, listenAddress := makeNetwork(listenInterface, listenIP)
+	back := makeBackend(videoDirs, psql)
+
+	if minissdpdSocket != "" && !isSocket(minissdpdSocket) {
+		slog.Warn("minissdpd socket disabled, incorrect", "socket", minissdpdSocket)
+		minissdpdSocket = ""
+	}
+
 	v4face, listenAddress := makeNetwork(listenInterface, listenIP)
-	dlnaServer := makeDLNAServer(videoDirectory, friendlyName, listenAddress, psql)
-	ssdpServer := makeFullSsdpServer(dlnaServer, v4face.Interface)
-	//ssdpServer := makeMiniSsdpServer(dlnaServer)
+	dlnaServer := makeDLNAServer(friendlyName, listenAddress, back)
+
+	var ssdpServer ssdp.Server
+	if minissdpdSocket != "" {
+		ssdpServer = makeMiniSsdpServer(dlnaServer, minissdpdSocket)
+	} else {
+		ssdpServer = makeFullSsdpServer(dlnaServer, v4face.Interface)
+	}
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 
 	go func() {
 		<-c
-		// terminate indexer, ssdp, dlna servers
+		// terminate backend, ssdp, dlna servers
 		slog.Debug("gracefully shutting down...")
+		if err := back.Stop(); err != nil {
+			slog.Error(err.Error())
+		}
 		ssdpServer.Stop()
 		dlnaServer.Shutdown()
 	}()
 
-	idx.FullScan()
+	if err := back.Start(); err != nil {
+		criticalError(err)
+	}
 	go startSsdpServer(ssdpServer)
 	_ = dlnaServer.ListenAndServe()
 }
@@ -80,29 +114,20 @@ func makeDbConnection(dsn string) *pgxpool.Pool {
 	return engine
 }
 
-func validateRootDirectory(videoDirectory string) string {
-	var err error
+func makeBackend(dirs []string, psql *pgxpool.Pool) *backend.Backend {
 
-	if videoDirectory, err = filepath.Abs(videoDirectory); err != nil {
+	if !ffmpeg.Autodetect() {
+		criticalError(fmt.Errorf("ffmpeg binary not found"))
+	}
+	if !ffprobe.Autodetect() {
+		criticalError(fmt.Errorf("ffprobe binary not found"))
+	}
+	driver := backend.NewPostgresDriver(psql)
+	back, err := backend.NewBackend(dirs, driver)
+	if err != nil {
 		criticalError(err)
 	}
-
-	if !indexer.FileExists(videoDirectory) {
-		criticalError(fmt.Errorf("video directory does not exist: %s", videoDirectory))
-	}
-
-	return videoDirectory
-}
-
-func makeIndexer(videoDirectory string, psql *pgxpool.Pool) *indexer.Indexer {
-	if !indexer.FFMpegBinPathAutodetect() {
-		criticalError(fmt.Errorf("ffmpeg not detected"))
-	}
-
-	if !indexer.FFProbeBinPathAutodetect() {
-		criticalError(fmt.Errorf("ffprobe not detected"))
-	}
-	return indexer.NewIndexer(videoDirectory, psql)
+	return back
 }
 
 func makeNetwork(eth string, ip string) (network.V4Interface, string) {
@@ -117,8 +142,8 @@ func makeNetwork(eth string, ip string) (network.V4Interface, string) {
 	return v4face, addr
 }
 
-func makeDLNAServer(root string, friendlyName string, listenAddress string, psql *pgxpool.Pool) *dlna.Server {
-	srv := dlna.NewServer(root, friendlyName, listenAddress, psql)
+func makeDLNAServer(friendlyName string, listenAddress string, back *backend.Backend) *dlna.Server {
+	srv := dlna.NewServer(friendlyName, listenAddress, back)
 	srv.DebugRequest = true
 	//srv.DebugRequestHeader = true
 	//srv.DebugRequestBody = true
@@ -140,17 +165,18 @@ func makeFullSsdpServer(s *dlna.Server, iface *net.Interface) ssdp.Server {
 	}
 }
 
-func makeMiniSsdpServer(s *dlna.Server) ssdp.Server {
+func makeMiniSsdpServer(s *dlna.Server, socketFile string) ssdp.Server {
 	services := make([]string, 0)
 	for _, serv := range s.DeviceDescription.Device.ServiceList {
 		services = append(services, serv.ServiceType)
 	}
 	return &ssdp.MiniServer{
-		Location:     "http://" + s.ListenAddress + s.DeviceDescription.Location,
-		ServerHeader: dlna.ServerHeader,
-		DeviceType:   s.DeviceDescription.Device.DeviceType,
-		DeviceUDN:    s.DeviceDescription.Device.UDN,
-		ServiceList:  services,
+		Location:        "http://" + s.ListenAddress + s.DeviceDescription.Location,
+		ServerHeader:    dlna.ServerHeader,
+		DeviceType:      s.DeviceDescription.Device.DeviceType,
+		DeviceUDN:       s.DeviceDescription.Device.UDN,
+		ServiceList:     services,
+		MinissdpdSocket: socketFile,
 	}
 }
 
@@ -161,10 +187,10 @@ func startSsdpServer(srv ssdp.Server) {
 }
 
 func defaultVideoRoot() string {
-	if indexer.FileExists("/volume1/video") {
+	if _, err := os.Stat("/volume1/video"); err == nil {
 		return "/volume1/video"
 	}
-	if indexer.FileExists("/volume2/video") {
+	if _, err := os.Stat("/volume2/video"); err == nil {
 		return "/volume2/video"
 	}
 	if d, err := filepath.Abs("./"); err == nil {
@@ -173,12 +199,23 @@ func defaultVideoRoot() string {
 	return "./"
 }
 
+func defaultMinissdpd() string {
+	socket := "/var/run/minissdpd.sock"
+	if isSocket(socket) {
+		return socket
+	}
+	return ""
+}
+
 func criticalError(err error) {
 	slog.Error(err.Error())
 	os.Exit(1)
 }
 
 func isSocket(path string) bool {
+	if path == "" {
+		return false
+	}
 	info, err := os.Lstat(path)
 	if err != nil {
 		return false

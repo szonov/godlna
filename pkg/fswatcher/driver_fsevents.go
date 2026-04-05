@@ -122,7 +122,7 @@ func newDriver() (driver, error) {
 func (w *fsevents) addDirectory(dir string) error {
 	absPath, err := validatedAddDir(dir, w.roots)
 	if err != nil {
-		return fmt.Errorf("*inotify:addDirectory: %w", err)
+		return fmt.Errorf("*fsevents:addDirectory: %w", err)
 	}
 	w.roots = append(w.roots, absPath)
 	return nil

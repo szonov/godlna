@@ -71,7 +71,7 @@ func (bmi *BookmarkInfo) writeCacheFile(file string) error {
 }
 
 func bookmarkInfoCacheFile(videoFile string) string {
-	return filepath.Dir(videoFile) + "/@eaDir/" + filepath.Base(videoFile) + "/GODLNA_BOOKMARK"
+	return filepath.Dir(videoFile) + "/@eaDir/" + filepath.Base(videoFile) + "/SYNOVIDEO_VIDEO_BOOKMARK"
 }
 
 func GetBookmarkInfo(videoFile string) (*BookmarkInfo, error) {

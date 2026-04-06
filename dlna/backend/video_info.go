@@ -85,7 +85,7 @@ func (mi *VideoInfo) writeCacheFile(file string) error {
 }
 
 func videoInfoCacheFile(videoFile string) string {
-	return filepath.Dir(videoFile) + "/@eaDir/" + filepath.Base(videoFile) + "/GODLNA_MEDIA_INFO"
+	return filepath.Dir(videoFile) + "/@eaDir/" + filepath.Base(videoFile) + "/SYNOVIDEO_VIDEO_INFO"
 }
 
 func GetVideoInfo(videoFile string) (*VideoInfo, error) {

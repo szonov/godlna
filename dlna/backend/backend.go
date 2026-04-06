@@ -357,7 +357,7 @@ func (b *Backend) Reindex(o *Object) error {
 	return nil
 }
 func (b *Backend) startReindexer() {
-	// delay for 11 seconds after full scan complete to be sure all scanned files will be processed in first chunk
+	// short delay after full scan complete to be sure all scanned files will be processed in first chunk
 	select {
 	case <-b.done:
 		return
@@ -386,9 +386,10 @@ func (b *Backend) reindexDirty() {
 	slog.Debug(">>>>>>> ReindexDirty :: start")
 
 	filter := ObjectSearchFilter{
-		Status: StatusReindex,
-		Sort:   SortById,
-		Limit:  100,
+		Status:        StatusReindex,
+		Sort:          SortById,
+		LastVisitedId: 0,
+		Limit:         100,
 	}
 
 	for {
@@ -420,10 +421,14 @@ func (b *Backend) reindexDirty() {
 	}
 	slog.Debug(">>>>>>> ReindexDirty :: stop")
 
-	o, _ := b.getOneObject(ObjectSearchFilter{Status: StatusDirty, Sort: SortNone, Limit: 1})
-	if o != nil {
-		slog.Debug("waiting for reindex", "o", o)
-		// Still exists objects waiting reindex, setup dirtyFlag for reindex in next tick
-		atomic.StoreUint32(&b.dirtyFlag, 1)
+	// make database query only if dirtyFlag is 0,
+	// if it is already 1 (events happens during reindexing) then no reason to call database
+	if atomic.LoadUint32(&b.dirtyFlag) == 0 {
+		o, _ := b.getOneObject(ObjectSearchFilter{Status: StatusDirty, Sort: SortNone, Limit: 1})
+		if o != nil {
+			slog.Debug("waiting for reindex", "o", o)
+			// Still exists objects waiting reindex, setup dirtyFlag for reindex in next tick
+			atomic.StoreUint32(&b.dirtyFlag, 1)
+		}
 	}
 }

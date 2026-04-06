@@ -21,29 +21,30 @@ CREATE TABLE objects
     bookmark    BIGINT,
     date        BIGINT   NOT NULL DEFAULT 0,
     online      BOOLEAN  NOT NULL DEFAULT true,
-    dirty       BOOLEAN  NOT NULL DEFAULT true
+    reindex_at  TIMESTAMP
 );
 
 CREATE OR REPLACE PROCEDURE index_add(IN is_dir BOOLEAN, IN full_path TEXT) AS
 $$
-DECLARE
-    obj_typ   SMALLINT;
-    obj_dirty BOOLEAN;
 BEGIN
     IF is_dir THEN
-        obj_typ := 0;
-        obj_dirty := false;
+        INSERT INTO objects (typ, path, online, reindex_at)
+        VALUES (0, full_path, true, NULL)
+        ON CONFLICT(path) DO UPDATE SET typ    = EXCLUDED.typ,
+                                        path   = EXCLUDED.path,
+                                        online = EXCLUDED.online,
+                                        reindex_at  = EXCLUDED.reindex_at;
     ELSE
-        obj_typ := 1;
-        obj_dirty := true;
+        -- give 10 second gap for new objects to start it indexing after find in file system
+        -- ... synology make something after file created
+        -- ... read somewhere that macOS copy files by samba with chunks and every time do IN_CLOSE_WRITE
+        INSERT INTO objects (typ, path, online, reindex_at)
+        VALUES (1, full_path, true, now() + make_interval(secs => 10))
+        ON CONFLICT(path) DO UPDATE SET typ    = EXCLUDED.typ,
+                                        path   = EXCLUDED.path,
+                                        online = EXCLUDED.online,
+                                        reindex_at  = EXCLUDED.reindex_at;
     END IF;
-
-    INSERT INTO objects (typ, path, online, dirty)
-    VALUES (obj_typ, full_path, true, obj_dirty)
-    ON CONFLICT(path) DO UPDATE SET typ    = EXCLUDED.typ,
-                                    path   = EXCLUDED.path,
-                                    online = EXCLUDED.online,
-                                    dirty  = EXCLUDED.dirty;
 END;
 $$ LANGUAGE plpgsql;
 

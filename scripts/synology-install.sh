@@ -6,6 +6,11 @@ if [[ -n "${SYNOLOGY_KERNEL}" ]]; then
   SUDO="sudo --user=postgres"
 fi
 
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)" || {
+  echo "Error: Failed to change directory to scripts directory" >&2
+  exit 1
+}
+
 echo "SUDO: '${SUDO}'"
 
 echo "0. Drop database for godlna"

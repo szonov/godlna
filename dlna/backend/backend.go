@@ -3,7 +3,6 @@ package backend
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -46,6 +45,36 @@ const (
 	ObjectVideo
 )
 
+type ObjectSort int
+
+const (
+	// SortPublic (default) sorting objects in way, how it should be visible for end user
+	SortPublic ObjectSort = iota
+
+	// SortById sorting objects by id, actual when getting dirty objects in chunks
+	SortById
+
+	// SortNone skip sorting, actual when getting one record by id
+	SortNone
+)
+
+type ObjectStatus int
+
+const (
+	// StatusPublic (default)  objects visible for end user: `WHERE reindex_at IS NULL`
+	StatusPublic ObjectStatus = iota
+
+	// StatusDirty objects not visible for end user: `WHERE reindex_at IS NOT NULL`
+	StatusDirty
+
+	// StatusReindex objects not visible for end user and ready for reindexing:
+	// `WHERE reindex_at IS NOT NULL AND reindex_at <= now()`
+	StatusReindex
+
+	// StatusAll all objects without restrictions for `reindex_at` field
+	StatusAll
+)
+
 type Object struct {
 	ID         int
 	Path       string
@@ -63,7 +92,7 @@ type Object struct {
 	Bookmark   sql.NullInt64
 	Date       int64
 	Online     bool
-	IsDirty    bool
+	ReindexAt  sql.NullTime
 }
 
 func (o *Object) ThumbPath() string {
@@ -83,16 +112,32 @@ func (o *Object) Title() string {
 }
 
 type ObjectSearchFilter struct {
-	Id               int
-	Limit            int
-	Offset           int
-	ParentPath       string
-	OwnPaths         []string
-	Dirty            sql.NullBool
+	// ID should add `WHERE id = {value}`
+	ID int
+
+	// Limit should add `LIMIT {value}`
+	Limit int
+
+	// Offset should add `OFFSET {value}`
+	Offset int
+
+	// ParentPath should add `WHERE path LIKE '{value}/%' AND path NOT LIKE {value}/%/%`
+	ParentPath string
+
+	// OwnPaths should add `WHERE path IN ('{value1}', '{value2}', ..., '{valueN}')`
+	OwnPaths []string
+
+	// LastVisitedId used for loop over dirty objects should add `WHERE id > {value}`
+	LastVisitedId int
+
+	// WithTotalMatches should calculate total amount of matched records and include it to response
 	WithTotalMatches bool
-	// LastVisitedId used for loop dirty objects,
-	// if passed valid value, order of search results should be changed to 'ORDER BY id'
-	LastVisitedId sql.NullInt64
+
+	// Status required object status, default is StatusPublic
+	Status ObjectStatus
+
+	// Sort define sort mode, default is SortPublic
+	Sort ObjectSort
 }
 
 type ObjectSearchResponse struct {
@@ -154,18 +199,7 @@ func (b *Backend) onWatcherEvent(e fswatcher.Event) {
 	case fswatcher.WalkComplete:
 		err = b.d.DeleteOfflineObjects()
 		if err == nil {
-			go func() {
-				b.ReindexDirty()
-				for {
-					select {
-					case <-b.done:
-						return
-					case <-time.After(30 * time.Second):
-						b.ReindexDirty()
-					}
-				}
-			}()
-
+			go b.startReindexer()
 		}
 	case fswatcher.Index:
 		err = b.d.Index(e.IsDir, e.Name)
@@ -179,6 +213,18 @@ func (b *Backend) onWatcherEvent(e fswatcher.Event) {
 	b.onError(err)
 }
 
+func (b *Backend) getOneObject(filter ObjectSearchFilter) (*Object, error) {
+	res, err := b.d.GetObjects(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(res.Items) > 0 {
+		return res.Items[0], err
+	}
+	return nil, ErrNoRows
+}
+
 func (b *Backend) Object(id int) (*Object, error) {
 	if id <= 0 { // root object
 		return &Object{
@@ -189,27 +235,12 @@ func (b *Backend) Object(id int) (*Object, error) {
 		}, nil
 	}
 
-	filter := ObjectSearchFilter{
-		Id:    id,
-		Dirty: sql.NullBool{Bool: false, Valid: true},
-	}
-
-	res, err := b.d.GetObjects(filter)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(res.Items) > 0 {
-		return res.Items[0], err
-	}
-
-	return nil, ErrNoRows
+	return b.getOneObject(ObjectSearchFilter{ID: id, Sort: SortNone})
 }
 
 func (b *Backend) Children(o *Object, limit int, offset int) (*ObjectSearchResponse, error) {
 	filter := ObjectSearchFilter{
 		ParentPath:       o.Path,
-		Dirty:            sql.NullBool{Bool: false, Valid: true},
 		Limit:            limit,
 		Offset:           offset,
 		WithTotalMatches: true,
@@ -244,17 +275,15 @@ func (b *Backend) ParentId(o *Object) (int, error) {
 		}
 	}
 
-	res, err := b.d.GetObjects(ObjectSearchFilter{
+	parent, err := b.getOneObject(ObjectSearchFilter{
 		OwnPaths: []string{filepath.Dir(o.Path)},
-		Dirty:    sql.NullBool{Bool: false, Valid: true},
+		Sort:     SortNone,
 		Limit:    1,
 	})
 
-	if err != nil || len(res.Items) == 0 {
-		return 0, fmt.Errorf("(backend.ParentId) no object found: %w", err)
+	if err != nil {
+		return 0, err
 	}
-
-	parent := res.Items[0]
 
 	if len(b.roots) == 1 && parent.Path == b.roots[0] { // in single root mode found root folder
 		return 0, nil
@@ -272,16 +301,13 @@ func (b *Backend) SetBookmark(id int, bookmark int64) error {
 		return ErrNoRows
 	}
 
-	res, err := b.d.GetObjects(ObjectSearchFilter{Id: id})
-	if err != nil || len(res.Items) == 0 {
-		return ErrNoRows
+	o, err := b.getOneObject(ObjectSearchFilter{ID: id, Sort: SortNone})
+	if err != nil {
+		return err
 	}
-
-	o := res.Items[0]
 	bmi := &BookmarkInfo{
 		Bookmark: sql.NullInt64{Int64: bookmark, Valid: true},
 	}
-
 	if o.Bookmark == bmi.Bookmark {
 		// nothing changed
 		return nil
@@ -330,31 +356,51 @@ func (b *Backend) Reindex(o *Object) error {
 
 	return nil
 }
+func (b *Backend) startReindexer() {
+	// delay for 11 seconds after full scan complete to be sure all scanned files will be processed in first chunk
+	select {
+	case <-b.done:
+		return
+	case <-time.After(11 * time.Second):
+		b.reindexDirty()
+	}
 
-func (b *Backend) ReindexDirty() {
+	// circle, every 30 seconds try to run reindexer
+	for {
+		select {
+		case <-b.done:
+			return
+		case <-time.After(30 * time.Second):
+			b.reindexDirty()
+		}
+	}
+}
+
+func (b *Backend) reindexDirty() {
 
 	if !atomic.CompareAndSwapUint32(&b.dirtyFlag, 1, 0) {
 		slog.Debug(">>>>>>> ReindexDirty - skip, flag is 0")
 		return
 	}
 
-	slog.Debug(">>>>>>> ReindexDirty")
+	slog.Debug(">>>>>>> ReindexDirty :: start")
 
 	filter := ObjectSearchFilter{
-		Dirty:         sql.NullBool{Bool: true, Valid: true},
-		LastVisitedId: sql.NullInt64{Int64: 0, Valid: true},
-		Limit:         10,
+		Status: StatusReindex,
+		Sort:   SortById,
+		Limit:  100,
 	}
+
 	for {
 		res, err := b.d.GetObjects(filter)
 
 		if err != nil {
 			slog.Error("ReindexDirty :: GetObjects", "err", err)
-			return
+			break
 		}
 
 		if len(res.Items) == 0 {
-			return
+			break
 		}
 
 		for _, o := range res.Items {
@@ -363,7 +409,7 @@ func (b *Backend) ReindexDirty() {
 				return
 			default:
 			}
-			filter.LastVisitedId.Int64 = int64(o.ID)
+			filter.LastVisitedId = o.ID
 
 			if err := b.Reindex(o); err != nil {
 				slog.Error("ReindexDirty :: Reindex", "err", err, "o", o)
@@ -371,5 +417,13 @@ func (b *Backend) ReindexDirty() {
 				slog.Debug("ReindexDirty", "id", o.ID, "path", o.Path)
 			}
 		}
+	}
+	slog.Debug(">>>>>>> ReindexDirty :: stop")
+
+	o, _ := b.getOneObject(ObjectSearchFilter{Status: StatusDirty, Sort: SortNone, Limit: 1})
+	if o != nil {
+		slog.Debug("waiting for reindex", "o", o)
+		// Still exists objects waiting reindex, setup dirtyFlag for reindex in next tick
+		atomic.StoreUint32(&b.dirtyFlag, 1)
 	}
 }

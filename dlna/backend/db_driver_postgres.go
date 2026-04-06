@@ -2,8 +2,10 @@ package backend
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -28,16 +30,21 @@ func (d *PostgresDriver) GetObjects(f ObjectSearchFilter) (*ObjectSearchResponse
 	where := make([]string, 0)
 	params := make([]any, 0)
 
-	if f.Id > 0 {
-		where = append(where, fmt.Sprintf("id = %d", f.Id))
+	if f.ID > 0 {
+		where = append(where, fmt.Sprintf("id = %d", f.ID))
 	}
 
-	if f.Dirty.Valid {
-		if f.Dirty.Bool {
-			where = append(where, "dirty")
-		} else {
-			where = append(where, "NOT dirty")
-		}
+	if f.LastVisitedId > 0 {
+		where = append(where, fmt.Sprintf("id > %d", f.LastVisitedId))
+	}
+
+	if f.ParentPath != "" {
+		where = append(where, fmt.Sprintf("path LIKE $%d", idx))
+		params = append(params, f.ParentPath+"/%")
+		idx++
+		where = append(where, fmt.Sprintf("path NOT LIKE $%d", idx))
+		params = append(params, f.ParentPath+"/%/%")
+		idx++
 	}
 
 	if f.OwnPaths != nil && len(f.OwnPaths) > 0 {
@@ -50,17 +57,15 @@ func (d *PostgresDriver) GetObjects(f ObjectSearchFilter) (*ObjectSearchResponse
 		where = append(where, "path IN ("+strings.Join(q, ",")+")")
 	}
 
-	if f.ParentPath != "" {
-		where = append(where, fmt.Sprintf("path LIKE $%d", idx))
-		params = append(params, f.ParentPath+"/%")
-		idx++
-		where = append(where, fmt.Sprintf("path NOT LIKE $%d", idx))
-		params = append(params, f.ParentPath+"/%/%")
-		idx++
-	}
-
-	if f.LastVisitedId.Valid {
-		where = append(where, fmt.Sprintf("id > %d", f.LastVisitedId.Int64))
+	switch f.Status {
+	case StatusPublic:
+		where = append(where, "reindex_at IS NULL")
+	case StatusDirty:
+		where = append(where, "reindex_at IS NOT NULL")
+	case StatusReindex:
+		where = append(where, "reindex_at IS NOT NULL AND reindex_at <= now()")
+	case StatusAll:
+		// no restrictions
 	}
 
 	var whereString string
@@ -78,14 +83,17 @@ func (d *PostgresDriver) GetObjects(f ObjectSearchFilter) (*ObjectSearchResponse
 		}
 	}
 
-	sortOrder := "typ, path"
-	if f.LastVisitedId.Valid {
-		sortOrder = "id"
+	var orderBy string
+	switch f.Sort {
+	case SortPublic:
+		orderBy = " ORDER BY typ, path"
+	case SortById:
+		orderBy = " ORDER BY id"
+	case SortNone:
+		// no sorting
 	}
 
-	q := "SELECT" + " * FROM objects" + whereString + " ORDER BY " + sortOrder
-
-	//slog.Info("sql", "q", q, "params", params)
+	q := "SELECT" + " * FROM objects" + whereString + orderBy
 
 	if f.Limit > 0 {
 		q += fmt.Sprintf(" LIMIT %d", f.Limit)
@@ -93,6 +101,8 @@ func (d *PostgresDriver) GetObjects(f ObjectSearchFilter) (*ObjectSearchResponse
 	if f.Offset > 0 {
 		q += fmt.Sprintf(" OFFSET %d", f.Offset)
 	}
+
+	slog.Info("sql", "q", q, "params", params)
 
 	rows, err := d.db.Query(context.Background(), q, params...)
 	if err != nil {
@@ -122,7 +132,7 @@ func (d *PostgresDriver) GetObjects(f ObjectSearchFilter) (*ObjectSearchResponse
 			&item.Bookmark,
 			&item.Date,
 			&item.Online,
-			&item.IsDirty,
+			&item.ReindexAt,
 		); err != nil {
 			return nil, fmt.Errorf("(psql.Objects) failed scan row: %w", err)
 		}
@@ -198,9 +208,9 @@ func (d *PostgresDriver) UpdateObject(o *Object, v *VideoInfo, b *BookmarkInfo) 
 			o.Date = v.Date
 			updates = append(updates, fmt.Sprintf("date = %d", v.Date))
 		}
-		if o.IsDirty {
-			o.IsDirty = false
-			updates = append(updates, "dirty = false")
+		if o.ReindexAt.Valid {
+			o.ReindexAt = sql.NullTime{}
+			updates = append(updates, "reindex_at = NULL")
 		}
 	}
 	if b != nil {
@@ -223,7 +233,7 @@ func (d *PostgresDriver) UpdateObject(o *Object, v *VideoInfo, b *BookmarkInfo) 
 
 	q := fmt.Sprintf("UPDATE"+" objects SET %s WHERE id = %d", strings.Join(updates, ", "), o.ID)
 
-	//slog.Debug("UPDATE", "q", q)
+	slog.Debug("UPDATE", "q", q)
 
 	if _, err := d.db.Exec(context.Background(), q, params...); err != nil {
 		return fmt.Errorf("(psql.UpdateVideoInfo) failed query: %w", err)

@@ -12,9 +12,9 @@ import (
 
 	"github.com/szonov/godlna/dlna/backend"
 	"github.com/szonov/godlna/pkg/ffmpeg"
-	"github.com/szonov/godlna/soap"
-	"github.com/szonov/godlna/upnp/events"
-	"github.com/szonov/godlna/upnpav"
+	"github.com/szonov/godlna/pkg/soap"
+	"github.com/szonov/godlna/pkg/upnp/events"
+	"github.com/szonov/godlna/pkg/upnpav"
 )
 
 type (

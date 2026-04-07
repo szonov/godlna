@@ -1,8 +1,8 @@
 package dlna
 
 import (
-	"github.com/szonov/godlna/upnp/device"
-	"github.com/szonov/godlna/upnp/scpd"
+	"github.com/szonov/godlna/pkg/upnp/device"
+	"github.com/szonov/godlna/pkg/upnp/scpd"
 )
 
 const (

@@ -7,7 +7,7 @@ import (
 	"io/fs"
 	"net/http"
 
-	"github.com/szonov/godlna/soap"
+	"github.com/szonov/godlna/pkg/soap"
 )
 
 //go:embed icons

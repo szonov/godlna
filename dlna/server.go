@@ -12,7 +12,7 @@ import (
 
 	"github.com/szonov/godlna/dlna/backend"
 	"github.com/szonov/godlna/logger"
-	"github.com/szonov/godlna/upnp/device"
+	"github.com/szonov/godlna/pkg/upnp/device"
 )
 
 var ServerHeader = fmt.Sprintf("%s/%s %s %s", runtime.GOOS, runtime.Version(), "UPnP/1.0", "GoUPnP/1.0")

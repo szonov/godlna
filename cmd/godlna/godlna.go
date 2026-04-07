@@ -5,10 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
-	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,7 +18,7 @@ import (
 	"github.com/szonov/godlna/network"
 	"github.com/szonov/godlna/pkg/ffmpeg"
 	"github.com/szonov/godlna/pkg/ffprobe"
-	"github.com/szonov/godlna/upnp/ssdp"
+	"github.com/szonov/godlna/pkg/upnp/ssdp"
 )
 
 type StringList []string
@@ -40,6 +40,7 @@ var (
 	listenIP        string
 	listenPort      int
 	minissdpdSocket string
+	logLevel        string
 )
 
 func main() {
@@ -52,9 +53,10 @@ func main() {
 	flag.StringVar(&listenIP, "ip", v4faceDefault.IP, "on which `ip` run dlna server")
 	flag.IntVar(&listenPort, "port", 50003, "on which `port` run dlna server")
 	flag.StringVar(&minissdpdSocket, "minissdpd", defaultMinissdpd(), "Minissdp `socket` file, pass empty string to disable")
+	flag.StringVar(&logLevel, "log", "info", "Log `level`, accepted values are: debug, info, warn, error")
 	flag.Parse()
 
-	logger.InitLogger(slog.LevelDebug)
+	makeLogger(logLevel)
 
 	if len(videoDirs) == 0 {
 		videoDirs = append(videoDirs, defaultVideoRoot())
@@ -63,7 +65,7 @@ func main() {
 	psql := makeDbConnection(dsn)
 	back := makeBackend(videoDirs, psql)
 
-	if minissdpdSocket != "" && !isSocket(minissdpdSocket) {
+	if minissdpdSocket != "" && !ssdp.IsSocket(minissdpdSocket) {
 		slog.Warn("minissdpd socket disabled, incorrect", "socket", minissdpdSocket)
 		minissdpdSocket = ""
 	}
@@ -72,10 +74,14 @@ func main() {
 	dlnaServer := makeDLNAServer(friendlyName, listenAddress, back)
 
 	var ssdpServer ssdp.Server
+	var ssdpInfo []any
+	ssdpOpts := makeSsdpOptions(dlnaServer)
 	if minissdpdSocket != "" {
-		ssdpServer = makeMiniSsdpServer(dlnaServer, minissdpdSocket)
+		ssdpServer = ssdp.NewMinissdpdClient(ssdpOpts, minissdpdSocket)
+		ssdpInfo = append(ssdpInfo, "socket", minissdpdSocket)
 	} else {
-		ssdpServer = makeFullSsdpServer(dlnaServer, v4face.Interface)
+		ssdpServer = ssdp.NewUdpServer(ssdpOpts, v4face.Interface)
+		ssdpInfo = append(ssdpInfo, "address", ssdp.MulticastAddrPort, "if", v4face.Interface.Name)
 	}
 
 	c := make(chan os.Signal, 1)
@@ -92,18 +98,49 @@ func main() {
 		<-c
 		// terminate backend, ssdp, dlna servers
 		slog.Debug("gracefully shutting down...")
+
+		slog.Info("stopping DLNA backend")
 		if err := back.Stop(); err != nil {
 			slog.Error(err.Error())
 		}
-		ssdpServer.Stop()
+
+		slog.Info("stopping SSDP server")
+		if err := ssdpServer.Stop(); err != nil {
+			slog.Error(err.Error())
+		}
+
+		slog.Info("stopping DLNA server")
 		dlnaServer.Shutdown()
 	}()
 
+	slog.Info("starting DLNA backend")
 	if err := back.Start(); err != nil {
 		criticalError(err)
 	}
+	slog.Info("starting SSDP server", ssdpInfo...)
 	go startSsdpServer(ssdpServer)
-	_ = dlnaServer.ListenAndServe()
+
+	slog.Info("starting DLNA server", "address", dlnaServer.ListenAddress)
+	if err := dlnaServer.ListenAndServe(); err != nil {
+		slog.Error(err.Error())
+	}
+}
+
+func makeLogger(level string) {
+	var loggerLogLevel slog.Level
+	switch strings.ToLower(level) {
+	case "debug":
+		loggerLogLevel = slog.LevelDebug
+	case "info":
+		loggerLogLevel = slog.LevelInfo
+	case "warn":
+		loggerLogLevel = slog.LevelWarn
+	case "error":
+		loggerLogLevel = slog.LevelError
+	default:
+		criticalError(fmt.Errorf("invalid log level: %s", logLevel))
+	}
+	logger.InitLogger(loggerLogLevel)
 }
 
 func makeDbConnection(dsn string) *pgxpool.Pool {
@@ -157,33 +194,17 @@ func makeDLNAServer(friendlyName string, listenAddress string, back *backend.Bac
 	return srv
 }
 
-func makeFullSsdpServer(s *dlna.Server, iface *net.Interface) ssdp.Server {
+func makeSsdpOptions(s *dlna.Server) *ssdp.Options {
 	services := make([]string, 0)
 	for _, serv := range s.DeviceDescription.Device.ServiceList {
 		services = append(services, serv.ServiceType)
 	}
-	return &ssdp.FullServer{
+	return &ssdp.Options{
 		Location:     "http://" + s.ListenAddress + s.DeviceDescription.Location,
 		ServerHeader: dlna.ServerHeader,
 		DeviceType:   s.DeviceDescription.Device.DeviceType,
 		DeviceUDN:    s.DeviceDescription.Device.UDN,
 		ServiceList:  services,
-		Interface:    iface,
-	}
-}
-
-func makeMiniSsdpServer(s *dlna.Server, socketFile string) ssdp.Server {
-	services := make([]string, 0)
-	for _, serv := range s.DeviceDescription.Device.ServiceList {
-		services = append(services, serv.ServiceType)
-	}
-	return &ssdp.MiniServer{
-		Location:        "http://" + s.ListenAddress + s.DeviceDescription.Location,
-		ServerHeader:    dlna.ServerHeader,
-		DeviceType:      s.DeviceDescription.Device.DeviceType,
-		DeviceUDN:       s.DeviceDescription.Device.UDN,
-		ServiceList:     services,
-		MinissdpdSocket: socketFile,
 	}
 }
 
@@ -208,7 +229,7 @@ func defaultVideoRoot() string {
 
 func defaultMinissdpd() string {
 	socket := "/var/run/minissdpd.sock"
-	if isSocket(socket) {
+	if ssdp.IsSocket(socket) {
 		return socket
 	}
 	return ""
@@ -217,20 +238,4 @@ func defaultMinissdpd() string {
 func criticalError(err error) {
 	slog.Error(err.Error())
 	os.Exit(1)
-}
-
-func isSocket(path string) bool {
-	if path == "" {
-		return false
-	}
-	info, err := os.Lstat(path)
-	if err != nil {
-		return false
-	}
-	_, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return false
-	}
-	mode := info.Mode()
-	return mode&os.ModeSocket != 0
 }

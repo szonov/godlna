@@ -49,15 +49,11 @@ func (s *Server) ListenAndServe() error {
 	var err error
 
 	if s.ListenAddress == "" {
-		err = fmt.Errorf("no ListenAddress specified")
-		slog.Error(err.Error())
-		return err
+		return fmt.Errorf("no ListenAddress specified")
 	}
 
 	if s.DeviceDescription == nil {
-		err = fmt.Errorf("no DeviceDescription specified")
-		slog.Error(err.Error())
-		return err
+		return fmt.Errorf("no DeviceDescription specified")
 	}
 
 	mux := http.NewServeMux()
@@ -67,14 +63,10 @@ func (s *Server) ListenAndServe() error {
 	}
 
 	if err = s.setupRoutes(mux); err != nil {
-		slog.Error(err.Error())
 		return err
 	}
 
-	slog.Info("starting HTTP server", slog.String("address", s.ListenAddress))
-
 	if err = s.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		slog.Error(err.Error())
 		return err
 	}
 
@@ -82,7 +74,6 @@ func (s *Server) ListenAndServe() error {
 }
 
 func (s *Server) Shutdown() {
-	slog.Info("stopping HTTP server", slog.String("address", s.ListenAddress))
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := s.srv.Shutdown(ctx); err != nil {

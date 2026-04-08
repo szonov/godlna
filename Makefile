@@ -12,7 +12,7 @@ help: ## Show this help
 
 mac: ## Build on local Mac
 	go build -ldflags="-s -w" -o ./godlna cmd/godlna/godlna.go
-	./godlna -root /Users/zonov/DemoVideo -name DemoVideo
+	./godlna -root /Users/zonov/DemoVideo -name DemoVideo -log debug
 
 rsyno: ## Build and send to first synology box
 	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ./godlna cmd/godlna/godlna.go

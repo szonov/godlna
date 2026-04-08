@@ -24,7 +24,7 @@ func NewDeviceController(srv *Server) (*DeviceController, error) {
 	ctl := &DeviceController{}
 	desc := srv.DeviceDescription
 	if desc == nil {
-		return ctl, fmt.Errorf("device descirition can't be nil")
+		return ctl, fmt.Errorf("device description can't be nil")
 	}
 
 	if ctl.deviceDescXML, err = xml.Marshal(desc); err != nil {

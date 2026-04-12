@@ -26,7 +26,7 @@ It is nice software, but there are couple not implemented things which I want to
 - preview image generation with visualizing watch percent
 
 As a solution I wrote simple dlna proxy which proxies requests to MediaStation and modify soap responses for supporting remembering playback position, and changes urls for preview images. Generally, it is what I need, but ...
-1) playing stopping every 15-30 minutes (but remembered position)
+1) ~~playing stopping every 15-30 minutes (but remembered position)~~ I found a bug in my implementation of the ssdp server (didn't add trailing `\r\n` to the HTTP headers)
 2) depends on MediaStation software and Synology DSM, looking for the future if I change Synology nas to linux box as home server I still want to use my dlna server for watching video.
 
 That is why I'm going to modify current implementation of DLNA server:
@@ -42,6 +42,10 @@ That is why I'm going to modify current implementation of DLNA server:
    - if video watched percent between 0 and 100 - use video frame from watched position and show bottom orange line with filled watched percent
    - if video fully watched use video frame - 10% of full duration and  show bottom green line fully filled
 5) use filesystem events for watching video directory changes
+
+### 2026-04-12
+All the planned ideas listed above have been implemented 
+and are now running on my Synology without any problems so far.
 
 ### Why not Plex, Jellyfin, Emby...?
 

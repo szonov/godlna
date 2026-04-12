@@ -50,3 +50,6 @@ and are now running on my Synology without any problems so far.
 ### Why not Plex, Jellyfin, Emby...?
 
 These software too clever and big for my goals... and do not fully support my needs. 
+
+### TODO
+ - [ ] When running on non-Synology computers, I need to track file deletions/renamings in the watched directories - do updates in the @eaDir folder 

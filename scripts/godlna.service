@@ -1,0 +1,14 @@
+[Unit]
+Description=GoDLNA Video
+After=network.target pgsql.service
+Wants=pgsql.service
+
+[Service]
+User=zonov
+WorkingDirectory=/volume1/scripts/godlna
+ExecStart=/volume1/scripts/godlna/godlna -log systemd -name video
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

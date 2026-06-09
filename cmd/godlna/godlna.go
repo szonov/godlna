@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/szonov/godlna/dlna"
@@ -53,7 +54,7 @@ func main() {
 	flag.StringVar(&listenIP, "ip", v4faceDefault.IP, "on which `ip` run dlna server")
 	flag.IntVar(&listenPort, "port", 50003, "on which `port` run dlna server")
 	flag.StringVar(&minissdpdSocket, "minissdpd", defaultMinissdpd(), "Minissdp `socket` file, pass empty string to disable")
-	flag.StringVar(&logLevel, "log", "info", "Log `level`, accepted values are: debug, info, warn, error")
+	flag.StringVar(&logLevel, "log", "info", "Log `level`, accepted values are: systemd, debug, info, warn, error")
 	flag.Parse()
 
 	makeLogger(logLevel)
@@ -137,6 +138,9 @@ func makeLogger(level string) {
 		loggerLogLevel = slog.LevelWarn
 	case "error":
 		loggerLogLevel = slog.LevelError
+	case "systemd":
+		logger.OnlyMessage = true
+		loggerLogLevel = slog.LevelInfo
 	default:
 		criticalError(fmt.Errorf("invalid log level: %s", logLevel))
 	}
@@ -200,11 +204,12 @@ func makeSsdpOptions(s *dlna.Server) *ssdp.Options {
 		services = append(services, serv.ServiceType)
 	}
 	return &ssdp.Options{
-		Location:     "http://" + s.ListenAddress + s.DeviceDescription.Location,
-		ServerHeader: dlna.ServerHeader,
-		DeviceType:   s.DeviceDescription.Device.DeviceType,
-		DeviceUDN:    s.DeviceDescription.Device.UDN,
-		ServiceList:  services,
+		Location:       "http://" + s.ListenAddress + s.DeviceDescription.Location,
+		ServerHeader:   dlna.ServerHeader,
+		DeviceType:     s.DeviceDescription.Device.DeviceType,
+		DeviceUDN:      s.DeviceDescription.Device.UDN,
+		ServiceList:    services,
+		NotifyInterval: 1 * time.Minute,
 	}
 }
 

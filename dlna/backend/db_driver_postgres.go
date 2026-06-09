@@ -102,7 +102,7 @@ func (d *PostgresDriver) GetObjects(f ObjectSearchFilter) (*ObjectSearchResponse
 		q += fmt.Sprintf(" OFFSET %d", f.Offset)
 	}
 
-	slog.Info("sql", "q", q, "params", params)
+	slog.Debug("sql", "q", q, "params", params)
 
 	rows, err := d.db.Query(context.Background(), q, params...)
 	if err != nil {

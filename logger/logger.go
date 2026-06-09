@@ -21,15 +21,9 @@ type MyLogHandler struct {
 	l *log.Logger
 }
 
-func (h *MyLogHandler) Handle(ctx context.Context, r slog.Record) error {
+var OnlyMessage = false
 
-	// caller
-	fs := runtime.CallersFrames([]uintptr{r.PC})
-	f, _ := fs.Next()
-	caller := f.File + ":" + strconv.Itoa(f.Line)
-	if len(caller) > 20 {
-		caller = ".." + caller[len(caller)-20:]
-	}
+func (h *MyLogHandler) Handle(ctx context.Context, r slog.Record) error {
 
 	// values
 	values := make([]string, 0)
@@ -42,6 +36,19 @@ func (h *MyLogHandler) Handle(ctx context.Context, r slog.Record) error {
 		values = append(values, key+"="+val)
 		return true
 	})
+
+	if OnlyMessage {
+		h.l.Println(r.Message, strings.Join(values, " "))
+		return nil
+	}
+
+	// caller
+	fs := runtime.CallersFrames([]uintptr{r.PC})
+	f, _ := fs.Next()
+	caller := f.File + ":" + strconv.Itoa(f.Line)
+	if len(caller) > 20 {
+		caller = ".." + caller[len(caller)-20:]
+	}
 
 	// level
 	level := r.Level.String()

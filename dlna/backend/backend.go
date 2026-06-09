@@ -365,6 +365,8 @@ func (b *Backend) startReindexer() {
 		b.reindexDirty()
 	}
 
+	slog.Info("video folders re-indexed", "dirs", b.roots)
+
 	// circle, every 30 seconds try to run reindexer
 	for {
 		select {
@@ -403,6 +405,8 @@ func (b *Backend) reindexDirty() {
 		if len(res.Items) == 0 {
 			break
 		}
+
+		//slog.Info("ReindexDirty", "count", len(res.Items))
 
 		for _, o := range res.Items {
 			select {
